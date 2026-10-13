@@ -639,6 +639,9 @@ select.input {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+
+  /* 页边距与日历/时间线/表格视图保持一致（20px 栏距 + 上下留白） */
+  padding: var(--space-4) 20px var(--space-5);
 }
 
 /* KPI 概览：图标 + 大数字 + 上下文副文案，一眼看懂“现在怎么样” */
@@ -1498,7 +1501,9 @@ select.input {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-2) var(--space-4);
+
+  /* 页边距由 .list-page 统一提供，工具条自身不再叠加内边距 */
+  padding: 0;
   flex-wrap: wrap;
 }
 
@@ -2626,8 +2631,15 @@ select.input {
 }
 .project-layout__body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
-/* ----- 列表视图页 ----- */
-.list-page { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+/* ----- 列表视图页（表格）：页边距与日历/时间线保持一致 ----- */
+.list-page {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) 20px var(--space-5);
+}
 .list-page__body { flex: 1; min-height: 0; overflow-y: auto; }
 .db-toolbar__count { color: var(--color-text-secondary); font-size: 12px; white-space: nowrap; }
 .settings-tabs { padding: 0 20px; margin-bottom: var(--space-4); }
