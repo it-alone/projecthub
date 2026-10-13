@@ -12,6 +12,8 @@ export interface BurndownPoint {
 export interface WorkloadRow {
   userId: string;
   name: string;
+  /** 成员头像色（未指派行为空，由展示层兜底） */
+  color: string | null;
   open: number;
   done: number;
 }
@@ -24,6 +26,8 @@ export interface TrendPoint {
 export interface StatusSlice {
   columnId: string;
   name: string;
+  /** 完成列（isDone）用于展示层区分语义色 */
+  isDone: boolean;
   count: number;
 }
 
@@ -74,8 +78,8 @@ export function computeBurndown(tasks: Task[], today: string): BurndownPoint[] {
 export function computeWorkload(tasks: Task[], users: User[]): WorkloadRow[] {
   const active = tasks.filter((t) => !t.deletedAt);
   const byUser = new Map<string, WorkloadRow>();
-  for (const u of users) byUser.set(u.id, { userId: u.id, name: u.name, open: 0, done: 0 });
-  const unassigned: WorkloadRow = { userId: "", name: "—", open: 0, done: 0 };
+  for (const u of users) byUser.set(u.id, { userId: u.id, name: u.name, color: u.avatarColor ?? null, open: 0, done: 0 });
+  const unassigned: WorkloadRow = { userId: "", name: "—", color: null, open: 0, done: 0 };
   for (const t of active) {
     const row = t.assigneeId ? byUser.get(t.assigneeId) : unassigned;
     if (!row) continue;
@@ -120,7 +124,7 @@ export function computeStatusDistribution(tasks: Task[], columns: StatusColumn[]
   const active = tasks.filter((t) => !t.deletedAt);
   return [...columns]
     .sort((a, b) => a.order - b.order)
-    .map((c) => ({ columnId: c.id, name: c.name, count: active.filter((t) => t.status === c.id).length }));
+    .map((c) => ({ columnId: c.id, name: c.name, isDone: c.isDone, count: active.filter((t) => t.status === c.id).length }));
 }
 
 /** 优先级分布（urgent→none） */
