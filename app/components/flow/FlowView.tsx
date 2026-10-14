@@ -9,7 +9,7 @@ import { Icon } from "~/components/ui/Icon";
 import { ConfirmDialog } from "~/components/ui/ConfirmDialog";
 import { useToast } from "~/components/ui/Toast";
 import { useI18n } from "~/lib/i18n";
-import { FLOW_NODE_SIZE, flowService } from "~/services/flow.service";
+import { FLOW_NODE_MAX, FLOW_NODE_MIN, FLOW_NODE_SIZE, flowService } from "~/services/flow.service";
 import { type Flow, type FlowNode, type FlowNodeKind } from "~/models/flow";
 
 export interface FlowViewProps {
@@ -28,6 +28,15 @@ const PORT_OFFSET = 36; // 连线贝塞尔控制点外推距离
 
 type Side = "top" | "right" | "bottom" | "left";
 const SIDES: Side[] = ["top", "right", "bottom", "left"];
+
+/** 四角缩放句柄；圆形形状（连接符/汇总）缩放时锁定纵横比 */
+type Corner = "tl" | "tr" | "bl" | "br";
+const CORNERS: Corner[] = ["tl", "tr", "bl", "br"];
+const ROUND_KINDS = new Set<FlowNodeKind>(["connector", "summing"]);
+
+function clampN(v: number, min: number, max: number) {
+  return Math.min(Math.max(v, min), max);
+}
 
 interface Pt {
   x: number;
@@ -119,6 +128,7 @@ export function FlowView({ flow, flowId }: FlowViewProps) {
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [editingEdgeId, setEditingEdgeId] = useState<string | null>(null);
   const [draftPos, setDraftPos] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [draftBox, setDraftBox] = useState<{ id: string; x: number; y: number; w: number; h: number } | null>(null);
   const [drawing, setDrawing] = useState<{ from: string; side: Side; x: number; y: number } | null>(null);
   const [confirmDel, setConfirmDel] = useState<{ type: "node" | "edge"; id: string } | null>(null);
 
@@ -216,6 +226,50 @@ export function FlowView({ flow, flowId }: FlowViewProps) {
       window.removeEventListener("pointerup", up);
       setDraftPos(null);
       if (moved) void flowService.moveNode(flowId, node.id, last.x, last.y).catch(guard);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }
+
+  /** 四角缩放：对角锚定 + 网格吸附，本地草稿跟随，松手一次性落库 */
+  function resizePointerDown(e: ReactPointerEvent<HTMLSpanElement>, node: FlowNode, corner: Corner) {
+    e.preventDefault();
+    e.stopPropagation();
+    viewportRef.current?.focus();
+    setSel({ type: "node", id: node.id });
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const lock = ROUND_KINDS.has(node.kind);
+    // 圆形形状锁定纵横比：最小边取两者较大值，保证仍是正圆
+    const minW = lock ? Math.max(FLOW_NODE_MIN.w, FLOW_NODE_MIN.h) : FLOW_NODE_MIN.w;
+    const minH = lock ? minW : FLOW_NODE_MIN.h;
+    // 拖左/上角时对角（右下或其镜像）固定不动
+    const anchorX = corner === "tl" || corner === "bl" ? node.x + node.w : node.x;
+    const anchorY = corner === "tl" || corner === "tr" ? node.y + node.h : node.y;
+    let last = { x: node.x, y: node.y, w: node.w, h: node.h };
+    const move = (ev: PointerEvent) => {
+      const dx = (ev.clientX - startX) / zoom;
+      const dy = (ev.clientY - startY) / zoom;
+      let w = clampN(snap(corner === "tr" || corner === "br" ? node.w + dx : node.w - dx), minW, FLOW_NODE_MAX.w);
+      let h = clampN(snap(corner === "bl" || corner === "br" ? node.h + dy : node.h - dy), minH, FLOW_NODE_MAX.h);
+      if (lock) {
+        const s = Math.max(w, h);
+        w = s;
+        h = s;
+      }
+      const x = corner === "tl" || corner === "bl" ? anchorX - w : node.x;
+      const y = corner === "tl" || corner === "tr" ? anchorY - h : node.y;
+      last = { x, y, w, h };
+      setDraftBox({ id: node.id, ...last });
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      setDraftBox(null);
+      const changed = last.w !== node.w || last.h !== node.h || last.x !== node.x || last.y !== node.y;
+      if (changed) {
+        void flowService.resizeNode(flowId, node.id, last.x, last.y, last.w, last.h).catch(guard);
+      }
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
@@ -431,14 +485,17 @@ export function FlowView({ flow, flowId }: FlowViewProps) {
 
               {nodes.map((node) => {
                 const dragging = draftPos?.id === node.id;
-                const x = dragging ? draftPos.x : node.x;
-                const y = dragging ? draftPos.y : node.y;
+                const resizing = draftBox?.id === node.id;
+                const x = resizing ? draftBox.x : dragging ? draftPos.x : node.x;
+                const y = resizing ? draftBox.y : dragging ? draftPos.y : node.y;
+                const w = resizing ? draftBox.w : node.w;
+                const h = resizing ? draftBox.h : node.h;
                 const selected = sel?.type === "node" && sel.id === node.id;
                 return (
                   <div
                     key={node.id}
                     className={`flow-node flow-node--${node.kind}${selected ? " is-selected" : ""}${dragging ? " is-dragging" : ""}`}
-                    style={{ left: x, top: y, width: node.w, height: node.h }}
+                    style={{ left: x, top: y, width: w, height: h }}
                     onPointerDown={(e) => nodePointerDown(e, node)}
                     onDoubleClick={() => setEditingNodeId(node.id)}
                   >
@@ -476,6 +533,31 @@ export function FlowView({ flow, flowId }: FlowViewProps) {
                   </div>
                 );
               })}
+
+              {/* 选中节点的四角缩放句柄：独立覆盖层渲染，避免被 clip-path 形状（菱形/平行四边形等）裁剪 */}
+              {(() => {
+                const node = sel?.type === "node" ? nodeById.get(sel.id) : undefined;
+                if (!node || editingNodeId === node.id) return null;
+                const resizing = draftBox?.id === node.id;
+                const x = resizing ? draftBox.x : node.x;
+                const y = resizing ? draftBox.y : node.y;
+                const w = resizing ? draftBox.w : node.w;
+                const h = resizing ? draftBox.h : node.h;
+                return (
+                  <div className="flow-resize" style={{ left: x, top: y, width: w, height: h }}>
+                    {CORNERS.map((corner) => (
+                      <span
+                        key={corner}
+                        role="button"
+                        tabIndex={-1}
+                        aria-label={t("flowResizeAria")}
+                        className={`flow-resize__handle flow-resize__handle--${corner}`}
+                        onPointerDown={(e) => resizePointerDown(e, node, corner)}
+                      />
+                    ))}
+                  </div>
+                );
+              })()}
 
               {editingEdgeId &&
                 (() => {

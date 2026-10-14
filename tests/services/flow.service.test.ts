@@ -1,7 +1,7 @@
 import "fake-indexeddb/auto";
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "~/repositories/db";
-import { flowService, FLOW_NODE_SIZE } from "~/services/flow.service";
+import { flowService, FLOW_NODE_MAX, FLOW_NODE_MIN, FLOW_NODE_SIZE } from "~/services/flow.service";
 import { flowNodeKinds } from "~/models/flow";
 
 describe("flowService（应用级独立模块）", () => {
@@ -49,6 +49,19 @@ describe("flowService（应用级独立模块）", () => {
     await expect(flowService.renameNode(f.id, n.id, " ")).rejects.toThrow(/不能为空/);
     got = (await flowService.get(f.id))!;
     expect(got.nodes[0]!.text).toBe("审批通过");
+  });
+
+  it("resizeNode 更新几何；尺寸夹取到安全区间；文档不存在报错", async () => {
+    const f = await flowService.create("主流程");
+    const n = await flowService.addNode(f.id, { kind: "process", x: 100, y: 100, w: 148, h: 56, text: "A" });
+    await flowService.resizeNode(f.id, n.id, 100, 100, 320.4, 120.6);
+    expect((await flowService.get(f.id))!.nodes[0]).toMatchObject({ x: 100, y: 100, w: 320, h: 121 });
+    // 拖左上角：x/y 随对角锚定一起平移，尺寸低于下限时被夹取
+    await flowService.resizeNode(f.id, n.id, 40, 36, 10, 5);
+    expect((await flowService.get(f.id))!.nodes[0]).toMatchObject({ x: 40, y: 36, w: FLOW_NODE_MIN.w, h: FLOW_NODE_MIN.h });
+    await flowService.resizeNode(f.id, n.id, 0, 0, 9999, 9999);
+    expect((await flowService.get(f.id))!.nodes[0]).toMatchObject({ w: FLOW_NODE_MAX.w, h: FLOW_NODE_MAX.h });
+    await expect(flowService.resizeNode("ghost", n.id, 0, 0, 100, 100)).rejects.toThrow(/不存在/);
   });
 
   it("removeNode 级联删除其所有连线", async () => {

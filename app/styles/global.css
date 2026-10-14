@@ -4062,6 +4062,34 @@ select.input {
 .flow-port--left { left: 0; top: 50%; transform: translate(-50%, -50%); }
 .flow-port--right { right: 0; top: 50%; transform: translate(50%, -50%); }
 
+/* 选中节点的四角缩放句柄：独立覆盖层（不继承节点 clip-path），仅句柄接收事件 */
+.flow-resize {
+  position: absolute;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.flow-resize__handle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  box-sizing: border-box;
+  border: 2px solid var(--color-surface);
+  border-radius: 2px;
+  background: var(--color-primary);
+  pointer-events: auto;
+}
+
+.flow-resize__handle:focus-visible {
+  outline: 2px solid var(--color-primary-strong);
+  outline-offset: 1px;
+}
+
+.flow-resize__handle--tl { left: -5px; top: -5px; cursor: nwse-resize; }
+.flow-resize__handle--tr { right: -5px; top: -5px; cursor: nesw-resize; }
+.flow-resize__handle--bl { left: -5px; bottom: -5px; cursor: nesw-resize; }
+.flow-resize__handle--br { right: -5px; bottom: -5px; cursor: nwse-resize; }
+
 /* ---------- 20 种形状几何（.flow-node--* 画布节点 与 .flow-shape__preview--* 缩略图共用规则） ---------- */
 
 /* 起止：胶囊，主色底强调 */

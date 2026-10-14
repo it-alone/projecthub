@@ -65,6 +65,22 @@ export const flowService = {
     });
   },
 
+  /**
+   * 节点缩放：拖左/上角会同时平移 x/y（对角锚定），尺寸夹取到安全区间，
+   * 防止落库 0 尺寸（Zod positive 拒绝）或超出画布的巨型节点。
+   */
+  async resizeNode(flowId: string, nodeId: string, x: number, y: number, w: number, h: number): Promise<void> {
+    const flow = await this.require(flowId);
+    const cw = Math.round(Math.min(Math.max(w, FLOW_NODE_MIN.w), FLOW_NODE_MAX.w));
+    const ch = Math.round(Math.min(Math.max(h, FLOW_NODE_MIN.h), FLOW_NODE_MAX.h));
+    await db.flows.update(flow.id, {
+      nodes: flow.nodes.map((n) =>
+        n.id === nodeId ? { ...n, x: Math.round(x), y: Math.round(y), w: cw, h: ch } : n,
+      ),
+      updatedAt: new Date().toISOString(),
+    });
+  },
+
   async renameNode(flowId: string, nodeId: string, text: string): Promise<void> {
     const trimmed = text.trim();
     if (!trimmed) throw new Error("节点文字不能为空");
@@ -119,6 +135,10 @@ export const flowService = {
     return flow;
   },
 };
+
+/** 节点缩放安全区间（px，画布坐标）：下限保证句柄可抓、文字可读，上限防巨型节点 */
+export const FLOW_NODE_MIN = { w: 48, h: 36 };
+export const FLOW_NODE_MAX = { w: 720, h: 480 };
 
 /** 供 palette/快捷创建使用的默认尺寸（px，画布坐标）；与形状观感匹配（如菱形更宽、圆更小） */
 export const FLOW_NODE_SIZE: Record<FlowNodeKind, { w: number; h: number }> = {
