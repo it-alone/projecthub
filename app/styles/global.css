@@ -5149,7 +5149,7 @@ select.input {
 
 /* ----- 居民身份证（ID-1 卡：85.6×54mm → 672×424，圆角 3.18mm → 25px） ----- */
 
-/* 底纹用同心环线示意证卡扭索花纹（纯装饰性示意，非防伪复制） */
+/* 底纹按真实证照底纹的公开配色风格用 CSS 多层晕染 + 波纹重绘（示意性彩纹，非防伪纹样复制） */
 .sim-id {
   display: grid;
   grid-template-rows: auto 1fr auto auto;
@@ -5158,8 +5158,12 @@ select.input {
   padding: 22px 30px 20px;
   border-radius: 25px;
   background:
-    repeating-radial-gradient(circle 300px at 8% -6%, transparent 0 18px, var(--color-doc-id-tint) 18px 21px, transparent 21px 38px),
-    radial-gradient(120% 150% at 14% 0%, var(--color-doc-id-tint) 0%, transparent 58%),
+    repeating-radial-gradient(circle 300px at 6% -8%, transparent 0 13px, var(--color-doc-id-cyan) 13px 14.5px, transparent 14.5px 28px),
+    repeating-radial-gradient(circle 280px at 104% 112%, transparent 0 13px, var(--color-doc-id-pink) 13px 14.5px, transparent 14.5px 28px),
+    repeating-radial-gradient(circle 260px at 50% 120%, transparent 0 15px, var(--color-doc-id-gold) 15px 16.5px, transparent 16.5px 32px),
+    radial-gradient(90% 120% at 6% 0%, var(--color-doc-id-cyan) 0%, transparent 58%),
+    radial-gradient(80% 110% at 100% 100%, var(--color-doc-id-pink) 0%, transparent 52%),
+    radial-gradient(70% 70% at 46% 62%, var(--color-doc-id-gold) 0%, transparent 62%),
     var(--color-doc-paper);
 }
 
@@ -5266,11 +5270,12 @@ select.input {
   letter-spacing: 3px;
 }
 
-/* 背面：无标题，右侧大面积国徽底纹 + 中部偏左签发信息 */
+/* 背面：无标题，右侧大面积国徽底纹 + 中部偏左签发信息；底纹比正面素净 */
 .sim-id--back {
   grid-template-rows: 1fr;
   background:
-    repeating-radial-gradient(circle 320px at 106% 52%, transparent 0 20px, var(--color-doc-paper-deep) 20px 23px, transparent 23px 44px),
+    repeating-radial-gradient(circle 320px at 106% 52%, transparent 0 18px, var(--color-doc-id-cyan) 18px 19.5px, transparent 19.5px 38px),
+    radial-gradient(70% 90% at 100% 40%, var(--color-doc-id-cyan) 0%, transparent 60%),
     var(--color-doc-paper);
 }
 
@@ -5313,8 +5318,11 @@ select.input {
   padding: 24px 28px 18px;
   border-radius: 8px;
   background:
-    repeating-radial-gradient(circle 260px at -4% 108%, transparent 0 16px, var(--color-doc-pass-tint) 16px 19px, transparent 19px 36px),
-    radial-gradient(150% 130% at 8% 0%, var(--color-doc-pass-tint) 0%, transparent 52%),
+    repeating-radial-gradient(circle 280px at -6% 110%, transparent 0 13px, var(--color-doc-pass-peach) 13px 14.5px, transparent 14.5px 28px),
+    repeating-radial-gradient(circle 240px at 108% -6%, transparent 0 13px, var(--color-doc-pass-tint) 13px 14.5px, transparent 14.5px 28px),
+    radial-gradient(110% 130% at 0% 100%, var(--color-doc-pass-peach) 0%, transparent 56%),
+    radial-gradient(120% 110% at 100% 0%, var(--color-doc-pass-tint) 0%, transparent 58%),
+    radial-gradient(60% 80% at 50% 120%, var(--color-doc-id-gold) 0%, transparent 60%),
     var(--color-doc-paper);
 }
 
@@ -5435,7 +5443,12 @@ select.input {
   height: 510px;
   padding: 20px 54px 16px;
   border-radius: 6px;
-  background: var(--color-doc-paper);
+
+  /* 暖调底纸 + 斜向细纹，模拟执照专用纸的印刷质感 */
+  background:
+    repeating-linear-gradient(45deg, transparent 0 8px, var(--color-doc-paper-warm) 8px 9px, transparent 9px 17px),
+    radial-gradient(120% 100% at 50% 0%, var(--color-doc-paper-warm) 0%, transparent 70%),
+    var(--color-doc-paper);
 }
 
 /* 双线花边框（示意真实证书边框） */
@@ -5603,7 +5616,12 @@ select.input {
   height: 510px;
   padding: 10px;
   border-radius: 6px;
-  background: var(--color-doc-paper);
+
+  /* 淡绿整页晕染 + 底部波纹，贴近运输证票面的绿调水印观感 */
+  background:
+    repeating-radial-gradient(circle 340px at 50% 120%, transparent 0 16px, var(--color-doc-road-tint) 16px 17.5px, transparent 17.5px 34px),
+    radial-gradient(120% 100% at 50% 0%, var(--color-doc-road-tint) 0%, transparent 66%),
+    var(--color-doc-paper);
 }
 
 /* 证书外框 */
@@ -5722,8 +5740,10 @@ select.input {
   padding: 20px 30px 18px;
   border-radius: 25px;
   background:
-    repeating-radial-gradient(circle 260px at 104% -4%, transparent 0 16px, var(--color-doc-dl-tint) 16px 19px, transparent 19px 36px),
-    radial-gradient(130% 150% at 86% 0%, var(--color-doc-dl-tint) 0%, transparent 56%),
+    repeating-radial-gradient(circle 260px at 104% -4%, transparent 0 13px, var(--color-doc-dl-green) 13px 14.5px, transparent 14.5px 28px),
+    repeating-radial-gradient(circle 240px at -4% 108%, transparent 0 13px, var(--color-doc-dl-sand) 13px 14.5px, transparent 14.5px 28px),
+    radial-gradient(120% 130% at 92% 0%, var(--color-doc-dl-green) 0%, transparent 58%),
+    radial-gradient(100% 110% at 0% 100%, var(--color-doc-dl-sand) 0%, transparent 54%),
     var(--color-doc-paper);
 }
 
@@ -5844,7 +5864,8 @@ select.input {
   padding: 22px 30px;
   border-radius: 25px;
   background:
-    repeating-radial-gradient(circle 240px at 106% 104%, transparent 0 16px, var(--color-doc-paper-deep) 16px 19px, transparent 19px 36px),
+    repeating-radial-gradient(circle 240px at 106% 104%, transparent 0 16px, var(--color-doc-dl-green) 16px 17.5px, transparent 17.5px 34px),
+    radial-gradient(70% 80% at 100% 100%, var(--color-doc-dl-green) 0%, transparent 60%),
     var(--color-doc-paper);
 }
 
