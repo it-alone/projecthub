@@ -5,6 +5,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import { toCanvas as htmlToCanvas } from "html-to-image";
 import { Icon } from "~/components/ui/Icon";
 import { ConfirmDialog } from "~/components/ui/ConfirmDialog";
 import { useToast } from "~/components/ui/Toast";
@@ -36,6 +37,17 @@ const ROUND_KINDS = new Set<FlowNodeKind>(["connector", "summing", "or", "tape"]
 
 function clampN(v: number, min: number, max: number) {
   return Math.min(Math.max(v, min), max);
+}
+
+/** 沿祖先链取第一个非透明背景色：导出底色跟随当前主题，避免硬编码色值 */
+function resolveExportBg(from: HTMLElement): string {
+  let cur: HTMLElement | null = from;
+  while (cur) {
+    const c = getComputedStyle(cur).backgroundColor;
+    if (c && c !== "transparent" && !c.endsWith(", 0)")) return c;
+    cur = cur.parentElement;
+  }
+  return "transparent";
 }
 
 interface Pt {
@@ -147,6 +159,7 @@ export function FlowView({ flow, flowId }: FlowViewProps) {
   const [draftBox, setDraftBox] = useState<{ id: string; x: number; y: number; w: number; h: number } | null>(null);
   const [drawing, setDrawing] = useState<{ from: string; side: Side; x: number; y: number } | null>(null);
   const [confirmDel, setConfirmDel] = useState<{ type: "node" | "edge"; id: string } | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   const nodes = flow?.nodes ?? [];
   const edges = flow?.edges ?? [];
@@ -154,6 +167,55 @@ export function FlowView({ flow, flowId }: FlowViewProps) {
 
   function guard(e: unknown) {
     toast.error(e instanceof Error && e.message ? e.message : t("updateFailed"));
+  }
+
+  /**
+   * 导出为 PNG：整幅画布先按逻辑尺寸 1:1 渲染（2x 像素密度保证文字清晰），
+   * 再按节点包围盒裁掉大片空白。不直接用 html-to-image 的裁剪选项——
+   * 缩小克隆节点会让铺满画布的连线 SVG 跟着缩放（viewBox 失配），边会错位。
+   */
+  async function exportPng() {
+    const canvasEl = canvasRef.current;
+    if (!canvasEl || nodes.length === 0 || isExporting) return;
+    setIsExporting(true);
+    setSel(null); // 选中描边/缩放句柄不该出现在导出图里
+    try {
+      // 等两帧让选中态样式真正从 DOM 消失再截图
+      await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+      const full = await htmlToCanvas(canvasEl, {
+        width: CANVAS_W,
+        height: CANVAS_H,
+        pixelRatio: 2,
+        backgroundColor: resolveExportBg(canvasEl),
+        // 覆盖画布上的 scale(zoom)：无论编辑器缩放多少，导出恒为逻辑尺寸
+        style: { width: `${CANVAS_W}px`, height: `${CANVAS_H}px`, transform: "none" },
+      });
+      const pad = 48; // 留白覆盖连线外推控制点与箭头
+      const x = Math.max(0, Math.min(...nodes.map((n) => n.x)) - pad);
+      const y = Math.max(0, Math.min(...nodes.map((n) => n.y)) - pad);
+      const w = Math.min(CANVAS_W, Math.max(...nodes.map((n) => n.x + n.w)) + pad) - x;
+      const h = Math.min(CANVAS_H, Math.max(...nodes.map((n) => n.y + n.h)) + pad) - y;
+      const out = document.createElement("canvas");
+      out.width = w * 2;
+      out.height = h * 2;
+      const ctx = out.getContext("2d");
+      if (!ctx) throw new Error(t("flowExportFailed"));
+      ctx.drawImage(full, x * 2, y * 2, w * 2, h * 2, 0, 0, w * 2, h * 2);
+      const blob = await new Promise<Blob | null>((r) => out.toBlob(r, "image/png"));
+      if (!blob) throw new Error(t("flowExportFailed"));
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${(flow?.name ?? "flow").replace(/[\\/:*?"<>|]/g, "_")}.png`;
+      link.click();
+      // 延迟回收：Safari 等浏览器在 click 返回后仍需从该 URL 读取下载内容
+      window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      toast.success(t("flowExportDone"));
+    } catch {
+      toast.error(t("flowExportFailed"));
+    } finally {
+      setIsExporting(false);
+    }
   }
 
   /** 屏幕坐标 → 画布逻辑坐标（除以缩放） */
@@ -431,6 +493,16 @@ export function FlowView({ flow, flowId }: FlowViewProps) {
                 +
               </button>
             </div>
+            <button
+              type="button"
+              className="flow__export"
+              onClick={() => void exportPng()}
+              disabled={nodes.length === 0 || isExporting}
+              title={nodes.length === 0 ? t("flowExportEmpty") : undefined}
+            >
+              <Icon name="download" size={14} />
+              {t("flowExport")}
+            </button>
             <button
               type="button"
               className="flow__delete"

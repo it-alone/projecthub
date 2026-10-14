@@ -3876,6 +3876,37 @@ select.input {
   outline-offset: 1px;
 }
 
+/* 导出图片：与删除按钮同骨架，悬停主色而非危险色 */
+.flow__export {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 26px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: border-color var(--transition), color var(--transition);
+}
+
+.flow__export:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.flow__export:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.flow__export:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
 /* ---------- 画布视口（滚动/缩放容器） ---------- */
 .flow__viewport {
   /* 定位上下文：空态提示锚定到可视区而非 2400×1600 画布（否则落到屏幕外） */
