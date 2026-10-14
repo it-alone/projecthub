@@ -10,6 +10,7 @@ import type { Automation } from "~/models/automation";
 import type { ProjectTemplate } from "~/models/projectTemplate";
 import type { TaskTemplate } from "~/models/taskTemplate";
 import type { Flow } from "~/models/flow";
+import type { SimDoc } from "~/models/simDoc";
 
 export interface Preference {
   key: string;
@@ -29,6 +30,7 @@ class ProjectHubDB extends Dexie {
   projectTemplates!: EntityTable<ProjectTemplate, "id">;
   taskTemplates!: EntityTable<TaskTemplate, "id">;
   flows!: EntityTable<Flow, "id">;
+  simDocs!: EntityTable<SimDoc, "id">;
 
   constructor() {
     super("projecthub");
@@ -128,6 +130,10 @@ class ProjectHubDB extends Dexie {
           delete row.projectId;
         });
       });
+    // v12：证件模拟器 —— 每种证面至多一份本地填写数据，按 type 查询
+    this.version(12).stores({
+      simDocs: "id, type",
+    });
   }
 }
 

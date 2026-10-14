@@ -55,6 +55,19 @@
   --color-rail-fg-strong: #fafafa;
   --color-rail-on-strong: #171717;
 
+  /* ----- 证件模拟器（模拟纸面证照的印刷配色；纸面颜色不随主题反转，双主题恒定） ----- */
+  --color-doc-paper: #f6f7f4;      /* 证面底纸 */
+  --color-doc-paper-deep: #e9ede6; /* 证面深一档底（副证/表头带） */
+  --color-doc-ink: #31392f;        /* 证面印刷墨色 */
+  --color-doc-ink-soft: #707a6e;   /* 证面次级墨色 */
+  --color-doc-id-tint: #ddeae3;    /* 身份证淡青绿底 */
+  --color-doc-dl-tint: #e4eddd;    /* 驾驶证淡绿底 */
+  --color-doc-pass-tint: #f0e9dc;  /* 护照米色底 */
+  --color-doc-road-tint: #dcebd9;  /* 道路运输证绿底 */
+  --color-doc-red: #b23830;        /* 执照标题 / 印章红 */
+  --color-doc-photo-bg: #d7dcd2;   /* 人像位底色 */
+  --color-doc-mrz-bg: #edf0e9;     /* 机读区底 */
+
   /* ----- 圆角 ----- */
   --radius-sm: 6px;
   --radius-md: 8px;

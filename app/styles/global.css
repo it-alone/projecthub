@@ -4881,3 +4881,718 @@ select.input {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ============================================================
+   证件模拟器（Simulator）
+   证面配色走 --color-doc-*（tokens.css，双主题恒定的纸面色）；
+   证面印刷文字为版式内容，尺寸固定 px 以保证导出 PNG 观感稳定。
+   ============================================================ */
+
+/* ----- 首页：证面入口栅格 ----- */
+.sim-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(248px, 1fr));
+  gap: var(--space-4);
+  list-style: none;
+  margin: var(--space-4) 0 0;
+  padding: 0;
+}
+
+.sim-tile {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  overflow: hidden;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.sim-tile:hover,
+.sim-tile:focus-within {
+  border-color: var(--color-border-strong);
+  box-shadow: var(--shadow-md);
+}
+
+.sim-tile__open {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sim-tile__open:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+/* 缩略图：真实比例证面顶部裁切（flex 居中让超宽子元素两侧均匀溢出） */
+.sim-tile__thumb {
+  display: flex;
+  justify-content: center;
+  height: 148px;
+  overflow: hidden;
+  background: var(--color-surface-muted);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.sim-tile__scale {
+  flex: none;
+  transform-origin: top center;
+}
+
+.sim-tile__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-3) var(--space-4) var(--space-4);
+}
+
+.sim-tile__name { font-weight: 600; }
+
+.sim-tile__desc {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.sim-tile__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.sim-tile__meta.is-edited { color: var(--color-success); }
+
+/* ----- 编辑器：左表单右预览 ----- */
+.sim-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  text-decoration: none;
+}
+
+.sim-back:hover {
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+}
+
+.sim-hint--dirty { color: var(--color-warning); }
+
+.sim-editor {
+  display: grid;
+  grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
+  gap: var(--space-5);
+  margin-top: var(--space-4);
+  align-items: start;
+}
+
+@media (width <= 1080px) {
+  /* minmax(0,1fr) 允许列窄于内容，预览缩放才能跟随可用宽度生效 */
+  .sim-editor { grid-template-columns: minmax(0, 1fr); }
+}
+
+.sim-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.sim-form .form-field { margin-top: 0; }
+
+.sim-form__field--full { grid-column: 1 / -1; }
+
+.sim-form__area {
+  width: 100%;
+  min-height: 58px;
+  resize: vertical;
+}
+
+.sim-form__photo {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+
+.sim-form__photo-box {
+  flex: none;
+  width: 64px;
+  height: 82px;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--color-doc-photo-bg);
+  display: grid;
+  place-items: center;
+}
+
+.sim-form__photo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* 隐藏上传按钮内的原生 file input，保留可聚焦的 label */
+.sim-form__photo-actions input[type="file"] { display: none; }
+
+.sim-preview {
+  position: sticky;
+  top: var(--space-4);
+  display: grid;
+  place-items: center;
+  min-height: 320px;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-muted);
+  overflow: hidden;
+}
+
+.sim-preview__scaler { transform-origin: top left; }
+
+/* ----- 证面通用 ----- */
+.sim-stack {
+  display: grid;
+  gap: 20px;
+  width: 672px;
+}
+
+.sim-card {
+  position: relative;
+  width: 672px;
+  border-radius: var(--radius-md);
+  background: var(--color-doc-paper);
+  color: var(--color-doc-ink);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+  font-size: 15px;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+}
+
+.sim-card__cn {
+  font-size: 13px;
+  letter-spacing: 4px;
+  color: var(--color-doc-ink-soft);
+}
+
+.sim-card__label {
+  font-size: 13px;
+  letter-spacing: 2px;
+  color: var(--color-doc-ink-soft);
+}
+
+.sim-card__tag {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 2;
+  padding: 1px 10px;
+  border: 1px solid currentcolor;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--color-doc-ink-soft);
+  opacity: 0.8;
+}
+
+.sim-wm {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.sim-wm span {
+  position: absolute;
+  color: var(--color-doc-ink);
+  opacity: 0.13;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  white-space: nowrap;
+  transform: rotate(-24deg);
+}
+
+.sim-wm span:nth-child(1) { top: 24%; left: -4%; }
+.sim-wm span:nth-child(2) { top: 50%; left: 22%; }
+.sim-wm span:nth-child(3) { top: 76%; left: 0%; }
+
+.sim-photo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.sim-photo__empty {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: var(--color-doc-ink-soft);
+}
+
+.sim-dd--wrap {
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+/* ----- 居民身份证 ----- */
+.sim-id {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 14px;
+  height: 424px;
+  padding: 26px 34px;
+  background: linear-gradient(150deg, var(--color-doc-paper), var(--color-doc-id-tint));
+}
+
+.sim-id__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.sim-id__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 6px;
+}
+
+.sim-id__body {
+  display: flex;
+  gap: 26px;
+  min-height: 0;
+}
+
+.sim-id__photo {
+  flex: none;
+  width: 132px;
+  height: 172px;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--color-doc-photo-bg);
+}
+
+.sim-dl {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sim-dl__row { display: flex; align-items: baseline; gap: 12px; }
+
+.sim-dl__row dt {
+  flex: none;
+  font-size: 14px;
+  letter-spacing: 2px;
+  color: var(--color-doc-ink-soft);
+}
+
+.sim-dl__row dd { margin: 0; font-size: 16px; font-weight: 500; }
+
+.sim-id__no {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  margin: 0;
+}
+
+.sim-id__no-value {
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: 3px;
+}
+
+.sim-id--back { background: linear-gradient(150deg, var(--color-doc-paper), var(--color-doc-paper-deep)); }
+
+.sim-id__back-body {
+  display: grid;
+  align-content: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-6);
+}
+
+.sim-id__back-body .sim-dl { gap: 18px; }
+
+.sim-id__back-hint {
+  margin: var(--space-4) 0 0;
+  font-size: 12px;
+  letter-spacing: 3px;
+  color: var(--color-doc-ink-soft);
+  opacity: 0.8;
+}
+
+/* ----- 护照（资料页） ----- */
+.sim-pass {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 16px;
+  height: 474px;
+  padding: 26px 30px;
+  background: linear-gradient(165deg, var(--color-doc-paper), var(--color-doc-pass-tint));
+}
+
+.sim-pass__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+
+.sim-pass__title {
+  margin: 4px 0 0;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: 5px;
+}
+
+.sim-pass__title-en {
+  margin-left: var(--space-2);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 4px;
+  color: var(--color-doc-ink-soft);
+}
+
+.sim-pass__chips {
+  display: flex;
+  gap: var(--space-5);
+  margin: 0;
+}
+
+.sim-pass__chips p { margin: 0; text-align: right; }
+
+.sim-pass__chips strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+
+.sim-pass__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 156px;
+  gap: 22px;
+  min-height: 0;
+}
+
+.sim-pass__fields {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 20px;
+  align-content: start;
+}
+
+.sim-pass__fields dt {
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--color-doc-ink-soft);
+}
+
+.sim-pass__fields dd { margin: 2px 0 0; font-size: 15px; font-weight: 500; }
+
+.sim-pass__photo {
+  width: 156px;
+  height: 200px;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--color-doc-photo-bg);
+}
+
+.sim-pass__mrz {
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--color-doc-mrz-bg);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 14px;
+  letter-spacing: 1.5px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.sim-pass__mrz p { margin: 0; }
+
+/* ----- 营业执照（正本） ----- */
+.sim-bl {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: 14px;
+  width: 720px;
+  height: 510px;
+  padding: 28px 44px 24px;
+  background: linear-gradient(180deg, var(--color-doc-paper), var(--color-doc-paper-deep));
+}
+
+.sim-bl__head { text-align: center; }
+
+.sim-bl__title {
+  margin: 0;
+  font-size: 33px;
+  font-weight: 700;
+  letter-spacing: 14px;
+  color: var(--color-doc-red);
+}
+
+.sim-bl__sub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  letter-spacing: 6px;
+  color: var(--color-doc-ink-soft);
+}
+
+.sim-bl__uscc-row {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin: 12px 0 0;
+}
+
+.sim-bl__uscc {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  border-bottom: 1px dashed var(--color-doc-ink-soft);
+}
+
+.sim-bl__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 32px;
+  align-content: start;
+}
+
+.sim-bl__row { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
+
+.sim-bl__row > span {
+  flex: none;
+  font-size: 13px;
+  letter-spacing: 2px;
+  color: var(--color-doc-ink-soft);
+}
+
+.sim-bl__row > strong {
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.sim-bl__row--full { grid-column: 1 / -1; }
+
+.sim-bl__foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+
+.sim-bl__issue p { margin: 0 0 4px; font-size: 15px; }
+
+.sim-bl__issue .sim-card__label { margin-right: var(--space-2); }
+
+/* 样本专用章：双圈红章，强化「非真实证照」属性 */
+.sim-stamp {
+  flex: none;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 104px;
+  height: 104px;
+  border: 3px solid var(--color-doc-red);
+  border-radius: var(--radius-full);
+  color: var(--color-doc-red);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 3px;
+  text-align: center;
+  line-height: 1.5;
+  transform: rotate(-14deg);
+  opacity: 0.72;
+}
+
+.sim-stamp::after {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border: 1px solid currentcolor;
+  border-radius: var(--radius-full);
+}
+
+/* ----- 道路运输证（正本） ----- */
+.sim-rt {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  width: 720px;
+  height: 510px;
+  background: var(--color-doc-paper);
+}
+
+.sim-rt__band {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 36px;
+  background: var(--color-doc-road-tint);
+  border-bottom: 1px solid var(--color-doc-ink-soft);
+}
+
+.sim-rt__title {
+  margin: 0;
+  font-size: 27px;
+  font-weight: 700;
+  letter-spacing: 10px;
+}
+
+.sim-rt__table {
+  display: grid;
+  grid-template-columns: 128px minmax(0, 1fr) 128px minmax(0, 1fr);
+  align-content: center;
+  padding: 16px 36px;
+}
+
+.sim-rt__th,
+.sim-rt__td {
+  padding: 8px;
+  border-bottom: 1px solid var(--color-doc-paper-deep);
+}
+
+.sim-rt__th {
+  font-size: 13px;
+  letter-spacing: 2px;
+  color: var(--color-doc-ink-soft);
+}
+
+.sim-rt__td { font-size: 15px; font-weight: 500; }
+
+.sim-rt__td--plate {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+.sim-rt__cell--full { grid-column: 1 / -1; }
+
+.sim-rt__cell--span3 { grid-column: span 3; }
+
+.sim-rt__foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0 36px 16px;
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: var(--color-doc-ink-soft);
+}
+
+.sim-rt__foot p { margin: 0; }
+
+.sim-rt__foot .sim-card__label { margin-right: var(--space-2); }
+
+/* ----- 机动车驾驶证（正页 + 副页） ----- */
+.sim-drv {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 16px;
+  height: 424px;
+  padding: 24px 34px;
+  background: linear-gradient(150deg, var(--color-doc-paper), var(--color-doc-dl-tint));
+}
+
+.sim-drv__head { text-align: center; }
+
+.sim-drv__title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 4px;
+}
+
+.sim-drv__body {
+  display: flex;
+  gap: 24px;
+  min-height: 0;
+}
+
+.sim-drv__photo {
+  flex: none;
+  width: 126px;
+  height: 162px;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--color-doc-photo-bg);
+}
+
+.sim-drv__fields {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px 18px;
+  align-content: start;
+}
+
+.sim-drv__fields dt {
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: var(--color-doc-ink-soft);
+}
+
+.sim-drv__fields dd { margin: 1px 0 0; font-size: 14px; font-weight: 500; }
+
+.sim-drv__cell--full { grid-column: 1 / -1; }
+
+.sim-drv__no {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 2px;
+}
+
+.sim-drv-aux {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 12px;
+  height: 232px;
+  padding: 20px 34px;
+  background: var(--color-doc-paper-deep);
+}
+
+.sim-drv-aux__head { text-align: center; }
+
+.sim-drv-aux__fields {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+  align-content: start;
+}
+
+.sim-drv-aux__fields dt {
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: var(--color-doc-ink-soft);
+}
+
+.sim-drv-aux__fields dd { margin: 2px 0 0; font-size: 15px; font-weight: 500; }
