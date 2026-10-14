@@ -1,10 +1,17 @@
 import { db } from "~/repositories/db";
 import { uuid } from "~/lib/id";
-import { t } from "~/lib/i18n";
+import { getLocale, t } from "~/lib/i18n";
+import { buildMarkdownGuide } from "~/lib/markdownGuide";
 import { markdownDocSchema, type MarkdownDoc } from "~/models/markdownDoc";
 
 /** Markdown 文档正文长度上限（与 schema 一致，写入前截断，避免超大粘贴拖垮本地库） */
 export const MARKDOWN_DOC_MAX_CHARS = 500_000;
+
+/** 使用指南播种标记（preferences 表）：只播种一次，用户删除后不再自动出现 */
+const GUIDE_SEEDED_KEY = "markdownGuideSeeded";
+
+/** 播种进行中的 Promise：StrictMode 双挂载等并发调用共用一次执行，防止重复建文档 */
+let seedInFlight: Promise<void> | null = null;
 
 /**
  * Markdown 文档服务：应用级独立模块（同流程图的本地文档模式，不挂项目权限）。
@@ -57,6 +64,25 @@ export const markdownDocService = {
 
   async remove(docId: string): Promise<void> {
     await db.markdownDocs.delete(docId);
+  },
+
+  /**
+   * 首次进入文档模块时播种一篇《Markdown 使用指南》（按当前语言的示例正文），
+   * 让新用户立刻有一份可编辑、可预览的示例。偏好位只记一次：之后用户删除该文档，
+   * 也不会再自动出现（避免删不掉的骚扰）；需要时可从编辑器空态的插入按钮找回。
+   */
+  async seedGuideIfNeeded(): Promise<void> {
+    const flag = await db.preferences.get(GUIDE_SEEDED_KEY);
+    if (flag) return;
+    seedInFlight ??= (async () => {
+      try {
+        await this.create(t("docGuideTitle"), buildMarkdownGuide(getLocale()));
+        await db.preferences.put({ key: GUIDE_SEEDED_KEY, value: true });
+      } finally {
+        seedInFlight = null;
+      }
+    })();
+    return seedInFlight;
   },
 
   async require(docId: string): Promise<MarkdownDoc> {

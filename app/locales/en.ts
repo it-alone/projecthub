@@ -407,10 +407,12 @@ export const en: Dict = {
   docModeSplit: "Split",
   docModePreview: "Preview",
   docPlaceholder: "Write in Markdown… (headings, lists, tables, code blocks and more)",
+  docGuideTitle: "Markdown Guide",
+  docInsertGuide: "Insert guide example",
   docSaving: "Saving…",
   docAutoSaved: "Autosaved",
   docAutoSaveFailed: "Autosave failed",
-  docEmptyPreview: "Nothing here yet — switch to edit mode to start writing",
+  docEmptyPreview: "Nothing here yet — start writing in edit mode, or insert the guide example below",
 
   holNewYear: "New Year's Day",
   holSpringFestival: "Spring Festival",

@@ -34,6 +34,10 @@ export default function DocsRoute() {
   const [pendingDelete, setPendingDelete] = useState<MarkdownDoc | null>(null);
 
   useEffect(() => {
+    // 首次进入模块播种《使用指南》，让新用户立刻有一份可编辑示例
+    void markdownDocService.seedGuideIfNeeded().catch(() => {
+      // 播种失败（如隐私模式禁写）不阻塞列表，用户仍可手动新建
+    });
     // 经 schema 归一化（补默认值），按更新时间倒序：最近编辑优先
     const sub = liveQuery(async () => {
       const rows = await db.markdownDocs.toArray();

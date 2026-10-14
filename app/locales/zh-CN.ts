@@ -405,10 +405,12 @@ export const zhCN = {
   docModeSplit: "分屏",
   docModePreview: "预览",
   docPlaceholder: "用 Markdown 写点什么…（支持标题、列表、表格、代码块等）",
+  docGuideTitle: "Markdown 使用指南",
+  docInsertGuide: "插入使用指南示例",
   docSaving: "保存中…",
   docAutoSaved: "已自动保存",
   docAutoSaveFailed: "自动保存失败",
-  docEmptyPreview: "暂无内容，切换到编辑模式开始写作",
+  docEmptyPreview: "暂无内容。切换到编辑模式开始写作，或插入下面的使用指南示例",
 
   holNewYear: "元旦",
   holSpringFestival: "春节",

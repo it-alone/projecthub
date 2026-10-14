@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "~/lib/i18n";
 import { renderMarkdown } from "~/lib/markdown";
+import { buildMarkdownGuide } from "~/lib/markdownGuide";
 import { downloadTextFile } from "~/lib/download";
 import { markdownDocService } from "~/services/markdownDoc.service";
 import { Icon } from "~/components/ui/Icon";
@@ -20,7 +21,7 @@ export interface MarkdownEditorProps {
  * liveQuery 回写自己刚保存的内容时直接跳过，仅外部变更（如另开标签页）才采纳。
  */
 export function MarkdownEditor({ doc }: MarkdownEditorProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const toast = useToast();
   const [name, setName] = useState(doc.name);
   const [draft, setDraft] = useState(doc.content);
@@ -155,6 +156,10 @@ export function MarkdownEditor({ doc }: MarkdownEditorProps) {
             <div className="doc-editor__blank">
               <Icon name="markdown" size={28} />
               <p>{t("docEmptyPreview")}</p>
+              <button type="button" className="btn" onClick={() => setDraft(buildMarkdownGuide(locale))}>
+                <Icon name="plus" size={14} />
+                {t("docInsertGuide")}
+              </button>
             </div>
           ))}
       </div>
