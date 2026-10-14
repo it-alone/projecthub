@@ -5082,12 +5082,6 @@ select.input {
   font-variant-numeric: tabular-nums;
 }
 
-.sim-card__cn {
-  font-size: 13px;
-  letter-spacing: 4px;
-  color: var(--color-doc-ink-soft);
-}
-
 .sim-card__label {
   font-size: 13px;
   letter-spacing: 2px;
@@ -5153,41 +5147,58 @@ select.input {
   overflow-wrap: anywhere;
 }
 
-/* ----- 居民身份证 ----- */
+/* ----- 居民身份证（ID-1 卡：85.6×54mm → 672×424，圆角 3.18mm → 25px） ----- */
+
+/* 底纹用同心环线示意证卡扭索花纹（纯装饰性示意，非防伪复制） */
 .sim-id {
   display: grid;
-  grid-template-rows: auto 1fr auto;
-  gap: 14px;
+  grid-template-rows: auto 1fr auto auto;
+  gap: 10px;
   height: 424px;
-  padding: 26px 34px;
-  background: linear-gradient(150deg, var(--color-doc-paper), var(--color-doc-id-tint));
+  padding: 22px 30px 20px;
+  border-radius: 25px;
+  background:
+    repeating-radial-gradient(circle 300px at 8% -6%, transparent 0 18px, var(--color-doc-id-tint) 18px 21px, transparent 21px 38px),
+    radial-gradient(120% 150% at 14% 0%, var(--color-doc-id-tint) 0%, transparent 58%),
+    var(--color-doc-paper);
 }
 
 .sim-id__head {
   display: flex;
-  align-items: baseline;
-  gap: var(--space-3);
+  align-items: center;
+  gap: 14px;
+}
+
+/* 国徽占位：简化五角星，仅表达真实版式的位置关系 */
+.sim-id__emblem {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  background: var(--color-doc-red);
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
 }
 
 .sim-id__title {
   margin: 0;
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 700;
-  letter-spacing: 6px;
+  letter-spacing: 3px;
 }
 
 .sim-id__body {
   display: flex;
-  gap: 26px;
+  gap: 24px;
   min-height: 0;
+  align-items: start;
 }
 
+/* 人像约 22×32mm（25.4×35mm 规格缩放以容纳于 424px 卡高） */
 .sim-id__photo {
   flex: none;
-  width: 132px;
-  height: 172px;
+  width: 168px;
+  height: 226px;
   overflow: hidden;
-  border-radius: var(--radius-sm);
+  border-radius: 4px;
   background: var(--color-doc-photo-bg);
 }
 
@@ -5197,19 +5208,44 @@ select.input {
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 15px;
+  padding-top: 5px;
 }
 
-.sim-dl__row { display: flex; align-items: baseline; gap: 12px; }
+.sim-dl__row { display: flex; align-items: baseline; gap: 14px; }
 
 .sim-dl__row dt {
   flex: none;
   font-size: 14px;
-  letter-spacing: 2px;
+  letter-spacing: 3px;
   color: var(--color-doc-ink-soft);
 }
 
 .sim-dl__row dd { margin: 0; font-size: 16px; font-weight: 500; }
+
+/* 姓名独占一行且字号大于其余字段（真实证面层级） */
+.sim-dl__row--name dt { font-size: 15px; letter-spacing: 4px; }
+
+.sim-dl__row--name dd {
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: 2px;
+}
+
+/* 性别 / 民族 同行并列 */
+.sim-dl__pair { display: flex; gap: 38px; }
+
+/* 住址通栏两行（真实版式标签居左、内容跨全宽） */
+.sim-id__addr { display: flex; align-items: baseline; gap: 14px; }
+
+.sim-id__addr-label {
+  flex: none;
+  font-size: 14px;
+  letter-spacing: 3px;
+  color: var(--color-doc-ink-soft);
+}
+
+.sim-id__addr p { margin: 0; font-size: 15px; line-height: 1.45; }
 
 .sim-id__no {
   display: flex;
@@ -5218,39 +5254,77 @@ select.input {
   margin: 0;
 }
 
+.sim-id__no-label {
+  font-size: 13px;
+  letter-spacing: 2px;
+  color: var(--color-doc-ink-soft);
+}
+
 .sim-id__no-value {
-  font-size: 21px;
+  font-size: 22px;
   font-weight: 600;
   letter-spacing: 3px;
 }
 
-.sim-id--back { background: linear-gradient(150deg, var(--color-doc-paper), var(--color-doc-paper-deep)); }
+/* 背面：无标题，右侧大面积国徽底纹 + 中部偏左签发信息 */
+.sim-id--back {
+  grid-template-rows: 1fr;
+  background:
+    repeating-radial-gradient(circle 320px at 106% 52%, transparent 0 20px, var(--color-doc-paper-deep) 20px 23px, transparent 23px 44px),
+    var(--color-doc-paper);
+}
+
+.sim-id__back-emblem {
+  position: absolute;
+  top: 50%;
+  right: 66px;
+  width: 150px;
+  height: 150px;
+  background: var(--color-doc-red);
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+  opacity: 0.08;
+  transform: translateY(-50%);
+}
 
 .sim-id__back-body {
   display: grid;
   align-content: center;
-  gap: var(--space-2);
-  padding: 0 var(--space-6);
+  gap: var(--space-4);
+  height: 100%;
+  padding: 0 140px 0 64px;
 }
 
-.sim-id__back-body .sim-dl { gap: 18px; }
+.sim-id__back-body .sim-dl { gap: 22px; padding-top: 0; }
 
 .sim-id__back-hint {
-  margin: var(--space-4) 0 0;
+  margin: 0;
   font-size: 12px;
   letter-spacing: 3px;
   color: var(--color-doc-ink-soft);
   opacity: 0.8;
 }
 
-/* ----- 护照（资料页） ----- */
+/* ----- 护照（资料页 ICAO 9303 TD-3：125×88mm → 672×473） ----- */
 .sim-pass {
   display: grid;
   grid-template-rows: auto 1fr auto;
-  gap: 16px;
-  height: 474px;
-  padding: 26px 30px;
-  background: linear-gradient(165deg, var(--color-doc-paper), var(--color-doc-pass-tint));
+  gap: 14px;
+  height: 473px;
+  padding: 24px 28px 18px;
+  border-radius: 8px;
+  background:
+    repeating-radial-gradient(circle 260px at -4% 108%, transparent 0 16px, var(--color-doc-pass-tint) 16px 19px, transparent 19px 36px),
+    radial-gradient(150% 130% at 8% 0%, var(--color-doc-pass-tint) 0%, transparent 52%),
+    var(--color-doc-paper);
+}
+
+/* 真实资料页国名标题为红色印刷 */
+.sim-pass__cn {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 6px;
+  color: var(--color-doc-red);
 }
 
 .sim-pass__head {
@@ -5261,24 +5335,26 @@ select.input {
 }
 
 .sim-pass__title {
-  margin: 4px 0 0;
-  font-size: 19px;
+  margin: 2px 0 0;
+  font-size: 23px;
   font-weight: 700;
   letter-spacing: 5px;
+  color: var(--color-doc-red);
 }
 
 .sim-pass__title-en {
-  margin-left: var(--space-2);
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 4px;
-  color: var(--color-doc-ink-soft);
+  margin-left: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 5px;
+  color: var(--color-doc-red);
+  opacity: 0.85;
 }
 
 .sim-pass__chips {
   display: flex;
-  gap: var(--space-5);
-  margin: 0;
+  gap: 26px;
+  margin: 6px 0 0;
 }
 
 .sim-pass__chips p { margin: 0; text-align: right; }
@@ -5291,76 +5367,126 @@ select.input {
   letter-spacing: 1px;
 }
 
+/* 人像居左（TD-3 资料页版式），登记项目居右 */
 .sim-pass__body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 156px;
+  grid-template-columns: 178px minmax(0, 1fr);
   gap: 22px;
   min-height: 0;
+  align-items: start;
+}
+
+.sim-pass__photo {
+  width: 178px;
+  height: 226px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--color-doc-photo-bg);
 }
 
 .sim-pass__fields {
   margin: 0;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px 20px;
+  gap: 8px 18px;
   align-content: start;
 }
 
-.sim-pass__fields dt {
+/* 标签列等宽对齐，值竖向成列（真实版式的登记项目结构） */
+.sim-pass__cell {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  gap: 6px;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.sim-pass__cell--full { grid-column: 1 / -1; }
+
+.sim-pass__cell dt {
   font-size: 11px;
+  line-height: 1.35;
   letter-spacing: 1px;
   color: var(--color-doc-ink-soft);
 }
 
-.sim-pass__fields dd { margin: 2px 0 0; font-size: 15px; font-weight: 500; }
+.sim-pass__cell dd { margin: 0; font-size: 15px; font-weight: 500; min-width: 0; }
 
-.sim-pass__photo {
-  width: 156px;
-  height: 200px;
-  overflow: hidden;
-  border-radius: var(--radius-sm);
-  background: var(--color-doc-photo-bg);
-}
-
+/* 机读区：2 行 × 44 位，等宽字体铺满页宽（校验位留白，纯示意） */
 .sim-pass__mrz {
-  padding: 8px 12px;
-  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  border-radius: 4px;
   background: var(--color-doc-mrz-bg);
-  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 14px;
-  letter-spacing: 1.5px;
+  font-family: "OCR B", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 19px;
+  letter-spacing: 1px;
   white-space: nowrap;
   overflow: hidden;
 }
 
 .sim-pass__mrz p { margin: 0; }
 
-/* ----- 营业执照（正本） ----- */
+/* ----- 营业执照（正本 420×297mm → 720×510） ----- */
 .sim-bl {
   display: grid;
   grid-template-rows: auto auto 1fr auto;
-  gap: 14px;
+  gap: 10px;
   width: 720px;
   height: 510px;
-  padding: 28px 44px 24px;
-  background: linear-gradient(180deg, var(--color-doc-paper), var(--color-doc-paper-deep));
+  padding: 20px 54px 16px;
+  border-radius: 6px;
+  background: var(--color-doc-paper);
 }
 
-.sim-bl__head { text-align: center; }
+/* 双线花边框（示意真实证书边框） */
+.sim-bl::before {
+  content: "";
+  position: absolute;
+  inset: 10px;
+  border: 2px solid var(--color-doc-red);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+.sim-bl::after {
+  content: "";
+  position: absolute;
+  inset: 15px;
+  border: 1px solid var(--color-doc-red);
+  border-radius: 2px;
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.sim-bl__head {
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  text-align: center;
+}
+
+/* 国徽占位：标题正上方的简化五角星 */
+.sim-bl__emblem {
+  width: 34px;
+  height: 34px;
+  background: var(--color-doc-red);
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+}
 
 .sim-bl__title {
   margin: 0;
-  font-size: 33px;
+  font-family: STZhongsong, "Songti SC", SimSun, "Noto Serif SC", serif;
+  font-size: 32px;
   font-weight: 700;
-  letter-spacing: 14px;
+  letter-spacing: 12px;
   color: var(--color-doc-red);
 }
 
 .sim-bl__sub {
-  margin: 4px 0 0;
-  font-size: 13px;
-  letter-spacing: 6px;
-  color: var(--color-doc-ink-soft);
+  margin: 0;
+  font-size: 14px;
+  letter-spacing: 4px;
+  color: var(--color-doc-ink);
 }
 
 .sim-bl__uscc-row {
@@ -5368,7 +5494,7 @@ select.input {
   justify-content: center;
   align-items: baseline;
   gap: var(--space-3);
-  margin: 12px 0 0;
+  margin: 2px 0 0;
 }
 
 .sim-bl__uscc {
@@ -5378,10 +5504,11 @@ select.input {
   border-bottom: 1px dashed var(--color-doc-ink-soft);
 }
 
+/* 登记项目：通栏 / 半栏混排（名称、类型通栏，法定代表人与住所等半栏成对） */
 .sim-bl__grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px 32px;
+  gap: 8px 30px;
   align-content: start;
 }
 
@@ -5389,7 +5516,7 @@ select.input {
 
 .sim-bl__row > span {
   flex: none;
-  font-size: 13px;
+  font-size: 14px;
   letter-spacing: 2px;
   color: var(--color-doc-ink-soft);
 }
@@ -5402,10 +5529,29 @@ select.input {
 
 .sim-bl__row--full { grid-column: 1 / -1; }
 
+.sim-bl__row--scope { grid-column: 1 / -1; }
+
+.sim-bl__row--scope > strong {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
 .sim-bl__foot {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
+  gap: var(--space-4);
+}
+
+/* 二维码占位：真实版式左下角的登记信息二维码 */
+.sim-bl__qr {
+  flex: none;
+  width: 72px;
+  height: 72px;
+  border: 1px solid var(--color-doc-ink-soft);
+  border-radius: 2px;
+  background: repeating-conic-gradient(var(--color-doc-ink) 0 25%, var(--color-doc-paper) 0 50%) 0 0 / 12px 12px;
+  opacity: 0.85;
 }
 
 .sim-bl__issue p { margin: 0 0 4px; font-size: 15px; }
@@ -5418,8 +5564,8 @@ select.input {
   position: relative;
   display: grid;
   place-items: center;
-  width: 104px;
-  height: 104px;
+  width: 94px;
+  height: 94px;
   border: 3px solid var(--color-doc-red);
   border-radius: var(--radius-full);
   color: var(--color-doc-red);
@@ -5440,41 +5586,83 @@ select.input {
   border-radius: var(--radius-full);
 }
 
-/* ----- 道路运输证（正本） ----- */
+/* 道路运输证发证机关行内的小尺寸印章 */
+.sim-stamp--sm {
+  width: 84px;
+  height: 84px;
+  border-width: 2px;
+  font-size: 12px;
+  letter-spacing: 2px;
+}
+
+/* ----- 道路运输证（正本，A 系横幅证书 297×210mm → 720×510） ----- */
 .sim-rt {
   display: grid;
   grid-template-rows: auto 1fr auto;
   width: 720px;
   height: 510px;
+  padding: 10px;
+  border-radius: 6px;
   background: var(--color-doc-paper);
 }
 
+/* 证书外框 */
+.sim-rt::before {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border: 2px solid var(--color-doc-ink-soft);
+  border-radius: 4px;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* 通栏标题带：国徽占位 + 一行完整证名 + 正本标号 */
 .sim-rt__band {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 18px 36px;
+  justify-content: center;
+  gap: 16px;
+  padding: 18px 30px 16px;
   background: var(--color-doc-road-tint);
-  border-bottom: 1px solid var(--color-doc-ink-soft);
+  border-bottom: 2px solid var(--color-doc-ink-soft);
+}
+
+.sim-rt__emblem {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  background: var(--color-doc-red);
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
 }
 
 .sim-rt__title {
   margin: 0;
-  font-size: 27px;
+  font-size: 26px;
   font-weight: 700;
-  letter-spacing: 10px;
+  letter-spacing: 8px;
 }
 
+.sim-rt__vol {
+  font-size: 13px;
+  letter-spacing: 4px;
+  color: var(--color-doc-ink-soft);
+  border: 1px solid currentcolor;
+  padding: 2px 10px;
+  border-radius: 2px;
+}
+
+/* 登记表格：业户名称通栏，车辆/期限信息半栏成对 */
 .sim-rt__table {
   display: grid;
-  grid-template-columns: 128px minmax(0, 1fr) 128px minmax(0, 1fr);
+  grid-template-columns: 112px minmax(0, 1fr) 112px minmax(0, 1fr);
   align-content: center;
-  padding: 16px 36px;
+  padding: 14px 30px;
 }
 
 .sim-rt__th,
 .sim-rt__td {
-  padding: 8px;
+  padding: 9px 10px;
   border-bottom: 1px solid var(--color-doc-paper-deep);
 }
 
@@ -5492,15 +5680,30 @@ select.input {
   letter-spacing: 2px;
 }
 
-.sim-rt__cell--full { grid-column: 1 / -1; }
+/* 发证机关行：机关名称居左，样本章绝对定位盖在行尾（不占行高） */
+.sim-rt__td--issuer {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
 
-.sim-rt__cell--span3 { grid-column: span 3; }
+.sim-rt__td--issuer .sim-stamp--sm {
+  position: absolute;
+  right: 28px;
+  top: 50%;
+  transform: translateY(-50%) rotate(-14deg);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* 整行字段：标签占第 1 列，值横跨其余 3 列（同一行轨道） */
+.sim-rt__cell--span3 { grid-column: 2 / -1; }
 
 .sim-rt__foot {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  padding: 0 36px 16px;
+  padding: 0 30px 16px;
   font-size: 12px;
   letter-spacing: 2px;
   color: var(--color-doc-ink-soft);
@@ -5510,14 +5713,18 @@ select.input {
 
 .sim-rt__foot .sim-card__label { margin-right: var(--space-2); }
 
-/* ----- 机动车驾驶证（正页 + 副页） ----- */
+/* ----- 机动车驾驶证（正页 + 副页，均按 ID-1 卡 85.6×54mm） ----- */
 .sim-drv {
   display: grid;
-  grid-template-rows: auto 1fr;
-  gap: 16px;
+  grid-template-rows: auto 1fr auto auto auto;
+  gap: 10px;
   height: 424px;
-  padding: 24px 34px;
-  background: linear-gradient(150deg, var(--color-doc-paper), var(--color-doc-dl-tint));
+  padding: 20px 30px 18px;
+  border-radius: 25px;
+  background:
+    repeating-radial-gradient(circle 260px at 104% -4%, transparent 0 16px, var(--color-doc-dl-tint) 16px 19px, transparent 19px 36px),
+    radial-gradient(130% 150% at 86% 0%, var(--color-doc-dl-tint) 0%, transparent 56%),
+    var(--color-doc-paper);
 }
 
 .sim-drv__head { text-align: center; }
@@ -5529,18 +5736,20 @@ select.input {
   letter-spacing: 4px;
 }
 
+/* 人像居左，右侧姓名（独行加大）/性别/国籍/出生日期纵排 */
 .sim-drv__body {
   display: flex;
-  gap: 24px;
+  gap: 22px;
   min-height: 0;
+  align-items: start;
 }
 
 .sim-drv__photo {
   flex: none;
-  width: 126px;
-  height: 162px;
+  width: 156px;
+  height: 204px;
   overflow: hidden;
-  border-radius: var(--radius-sm);
+  border-radius: 4px;
   background: var(--color-doc-photo-bg);
 }
 
@@ -5548,51 +5757,121 @@ select.input {
   flex: 1;
   min-width: 0;
   margin: 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 9px 18px;
-  align-content: start;
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  padding-top: 4px;
 }
 
-.sim-drv__fields dt {
-  font-size: 12px;
+.sim-drv__row { display: flex; align-items: baseline; gap: 14px; }
+
+.sim-drv__row dt {
+  flex: none;
+  font-size: 13px;
   letter-spacing: 2px;
   color: var(--color-doc-ink-soft);
 }
 
-.sim-drv__fields dd { margin: 1px 0 0; font-size: 14px; font-weight: 500; }
+.sim-drv__row dd { margin: 0; font-size: 15px; font-weight: 500; }
 
-.sim-drv__cell--full { grid-column: 1 / -1; }
-
-.sim-drv__no {
-  font-size: 16px;
+.sim-drv__row--name dd {
+  font-size: 20px;
   font-weight: 600;
   letter-spacing: 2px;
 }
 
-.sim-drv-aux {
-  display: grid;
-  grid-template-rows: auto 1fr;
-  gap: 12px;
-  height: 232px;
-  padding: 20px 34px;
-  background: var(--color-doc-paper-deep);
-}
+/* 住址通栏 */
+.sim-drv__addr { display: flex; align-items: baseline; gap: 14px; }
 
-.sim-drv-aux__head { text-align: center; }
-
-.sim-drv-aux__fields {
-  margin: 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 12px;
-  align-content: start;
-}
-
-.sim-drv-aux__fields dt {
-  font-size: 12px;
+.sim-drv__addr-label {
+  flex: none;
+  font-size: 13px;
   letter-spacing: 2px;
   color: var(--color-doc-ink-soft);
 }
 
-.sim-drv-aux__fields dd { margin: 2px 0 0; font-size: 15px; font-weight: 500; }
+.sim-drv__addr p { margin: 0; font-size: 14px; line-height: 1.45; }
+
+/* 底部一行三段：初次领证日期 / 准驾车型 / 有效期限 */
+.sim-drv__foot-row {
+  display: flex;
+  gap: 26px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-doc-paper-deep);
+}
+
+.sim-drv__foot-row p { margin: 0; display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+
+.sim-drv__foot-row span {
+  flex: none;
+  font-size: 13px;
+  letter-spacing: 2px;
+  color: var(--color-doc-ink-soft);
+}
+
+.sim-drv__foot-row strong {
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* 证号条压底 */
+.sim-drv__no {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0;
+}
+
+.sim-drv__no-label {
+  font-size: 13px;
+  letter-spacing: 2px;
+  color: var(--color-doc-ink-soft);
+}
+
+.sim-drv__no-value {
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: 2px;
+}
+
+/* 副页：登记档案信息，大面积留白（与真实副页一致） */
+.sim-drv-aux {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 14px;
+  height: 424px;
+  padding: 22px 30px;
+  border-radius: 25px;
+  background:
+    repeating-radial-gradient(circle 240px at 106% 104%, transparent 0 16px, var(--color-doc-paper-deep) 16px 19px, transparent 19px 36px),
+    var(--color-doc-paper);
+}
+
+.sim-drv-aux__head {
+  text-align: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-doc-paper-deep);
+}
+
+.sim-drv-aux__fields {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 26px;
+  align-content: start;
+  padding-top: 6px;
+}
+
+.sim-drv-aux__row { display: flex; align-items: baseline; gap: 14px; min-width: 0; }
+
+.sim-drv-aux__row dt {
+  flex: none;
+  font-size: 13px;
+  letter-spacing: 2px;
+  color: var(--color-doc-ink-soft);
+}
+
+.sim-drv-aux__row dd { margin: 0; font-size: 15px; font-weight: 500; min-width: 0; }
+
+.sim-drv-aux__row--full { grid-column: 1 / -1; }

@@ -74,17 +74,47 @@ export function SimEditor({ type }: { type: SimDocType }) {
 
   // 预览缩放：跟随容器宽度；窄屏下限 0.32，保证整卡仍可辨认。
   // 依赖 ready：加载态提前 return 时 .sim-preview 尚未挂载，ref 为 null 拿不到观察目标。
+  // 浏览器兼容坑（WebKit/IAB 实测）：
+  // ① sticky 元素自身宽度变化时 ResizeObserver 不回调 → 观察 非 sticky 的父级网格；
+  // ② 整页刷新后视口宽度分多步收敛，单次测量会落在中间态且其后不再有事件 →
+  //    测量后延迟复核，宽度未稳定则继续测（有界循环），直到连续两次一致。
   const ready = doc !== undefined;
   useEffect(() => {
     if (!ready) return;
-    const el = stageRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => {
-      const avail = el.clientWidth - 32;
-      setScale(Math.min(1, Math.max(0.32, avail / layout.w)));
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
+    const stage = stageRef.current;
+    const host = stage?.parentElement;
+    if (!stage || !host) return;
+    const compute = () => {
+      const avail = stage.clientWidth - 32;
+      return Math.min(1, Math.max(0.32, avail / layout.w));
+    };
+    const measureUntilStable = () => {
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          let last = -1;
+          let rounds = 0;
+          const tick = () => {
+            const next = compute();
+            setScale(next);
+            // 停止条件：连续两次同值 且 卡片不再被容器裁切。后者用于捕获
+            // 「视口分步收敛、最后一步不派发事件」的尾巴——只要还裁着就继续测。
+            const clipped = stage.scrollWidth - stage.clientWidth > 1;
+            if ((next !== last || clipped) && rounds++ < 10) {
+              last = next;
+              window.setTimeout(tick, 250);
+            }
+          };
+          tick();
+        }),
+      );
+    };
+    const ro = new ResizeObserver(measureUntilStable);
+    ro.observe(host);
+    window.addEventListener("resize", measureUntilStable);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measureUntilStable);
+    };
   }, [layout.w, ready]);
 
   const base = doc ? doc.data : SIM_SAMPLE[type];

@@ -25,7 +25,11 @@ function mrzLine2(data: Record<string, string>): string {
   return `${no}<CHN${dob}<${sex}${exp}<`.padEnd(MRZ_LEN, "<").slice(0, MRZ_LEN);
 }
 
-/** 护照资料页示意卡：双语印刷 + 人像 + 机读区（校验位留白） */
+/**
+ * 护照资料页示意卡，版式参照 ICAO 9303 TD-3（125×88mm）公开规格：
+ * 红色国名标题、人像居左、右侧中英双语登记项目（标签纵排、值列对齐），
+ * 底部两行 44 位机读区（校验位留白）。
+ */
 export function SimPassport({ data }: { data: Record<string, string> }) {
   const [surname, ...rest] = (data.nameEn || "ZHANG SAN").toUpperCase().split(/\s+/).filter(Boolean);
   return (
@@ -34,7 +38,7 @@ export function SimPassport({ data }: { data: Record<string, string> }) {
       <span className="sim-card__tag">示意</span>
       <header className="sim-pass__head">
         <div>
-          <p className="sim-card__cn">中华人民共和国</p>
+          <p className="sim-pass__cn">中华人民共和国</p>
           <h3 className="sim-pass__title">
             护照<span className="sim-pass__title-en">PASSPORT</span>
           </h3>
@@ -55,51 +59,51 @@ export function SimPassport({ data }: { data: Record<string, string> }) {
         </div>
       </header>
       <div className="sim-pass__body">
-        <dl className="sim-pass__fields">
-          <div>
-            <dt>姓名 NAME</dt>
-            <dd>{data.name}</dd>
-          </div>
-          <div>
-            <dt>姓 SURNAME</dt>
-            <dd>{surname ?? ""}</dd>
-          </div>
-          <div>
-            <dt>名 GIVEN NAMES</dt>
-            <dd>{rest.join(" ")}</dd>
-          </div>
-          <div>
-            <dt>出生日期 DATE OF BIRTH</dt>
-            <dd>{data.birthDate}</dd>
-          </div>
-          <div>
-            <dt>性别 SEX</dt>
-            <dd>{data.gender === "女" ? "女 F" : "男 M"}</dd>
-          </div>
-          <div>
-            <dt>出生地 PLACE OF BIRTH</dt>
-            <dd>{data.birthPlace}</dd>
-          </div>
-          <div>
-            <dt>签发地点 PLACE OF ISSUE</dt>
-            <dd>{data.issuePlace}</dd>
-          </div>
-          <div>
-            <dt>签发机关 AUTHORITY</dt>
-            <dd className="sim-dd--wrap">{data.authority}</dd>
-          </div>
-          <div>
-            <dt>签发日期 DATE OF ISSUE</dt>
-            <dd>{data.issueDate}</dd>
-          </div>
-          <div>
-            <dt>有效期至 DATE OF EXPIRY</dt>
-            <dd>{data.expiryDate}</dd>
-          </div>
-        </dl>
         <div className="sim-pass__photo">
           <SimDocPhoto photo={data.photo} />
         </div>
+        <dl className="sim-pass__fields">
+          <div className="sim-pass__cell sim-pass__cell--full">
+            <dt>姓名 NAME</dt>
+            <dd>{data.name}</dd>
+          </div>
+          <div className="sim-pass__cell">
+            <dt>姓 SURNAME</dt>
+            <dd>{surname ?? ""}</dd>
+          </div>
+          <div className="sim-pass__cell">
+            <dt>名 GIVEN NAMES</dt>
+            <dd>{rest.join(" ")}</dd>
+          </div>
+          <div className="sim-pass__cell">
+            <dt>性别 SEX</dt>
+            <dd>{data.gender === "女" ? "女 F" : "男 M"}</dd>
+          </div>
+          <div className="sim-pass__cell">
+            <dt>出生日期 DATE OF BIRTH</dt>
+            <dd>{data.birthDate}</dd>
+          </div>
+          <div className="sim-pass__cell">
+            <dt>出生地 PLACE OF BIRTH</dt>
+            <dd>{data.birthPlace}</dd>
+          </div>
+          <div className="sim-pass__cell">
+            <dt>签发地点 PLACE OF ISSUE</dt>
+            <dd>{data.issuePlace}</dd>
+          </div>
+          <div className="sim-pass__cell">
+            <dt>签发日期 DATE OF ISSUE</dt>
+            <dd>{data.issueDate}</dd>
+          </div>
+          <div className="sim-pass__cell">
+            <dt>有效期至 DATE OF EXPIRY</dt>
+            <dd>{data.expiryDate}</dd>
+          </div>
+          <div className="sim-pass__cell sim-pass__cell--full">
+            <dt>签发机关 AUTHORITY</dt>
+            <dd className="sim-dd--wrap">{data.authority}</dd>
+          </div>
+        </dl>
       </div>
       <div className="sim-pass__mrz" aria-hidden="true">
         <p>{mrzLine1(data.nameEn ?? "")}</p>
