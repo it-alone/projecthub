@@ -29,10 +29,10 @@ const PORT_OFFSET = 36; // 连线贝塞尔控制点外推距离
 type Side = "top" | "right" | "bottom" | "left";
 const SIDES: Side[] = ["top", "right", "bottom", "left"];
 
-/** 四角缩放句柄；圆形形状（连接符/汇总）缩放时锁定纵横比 */
+/** 四角缩放句柄；圆形形状（连接符/汇总/或门/磁带）缩放时锁定纵横比 */
 type Corner = "tl" | "tr" | "bl" | "br";
 const CORNERS: Corner[] = ["tl", "tr", "bl", "br"];
-const ROUND_KINDS = new Set<FlowNodeKind>(["connector", "summing"]);
+const ROUND_KINDS = new Set<FlowNodeKind>(["connector", "summing", "or", "tape"]);
 
 function clampN(v: number, min: number, max: number) {
   return Math.min(Math.max(v, min), max);
@@ -83,33 +83,49 @@ const KIND_LABEL_KEY: Record<FlowNodeKind, Parameters<ReturnType<typeof useI18n>
   io: "flowNodeIO",
   connector: "flowNodeConnector",
   offpage: "flowNodeOffpage",
+  manualOperation: "flowNodeManualOperation",
+  or: "flowNodeOr",
+  note: "flowNodeNote",
+  card: "flowNodeCard",
   document: "flowNodeDocument",
   multiDoc: "flowNodeMultiDoc",
   database: "flowNodeDatabase",
   internalStorage: "flowNodeInternalStorage",
   display: "flowNodeDisplay",
   manualInput: "flowNodeManualInput",
+  tape: "flowNodeTape",
+  directAccess: "flowNodeDirectAccess",
+  paperTape: "flowNodePaperTape",
+  storedData: "flowNodeStoredData",
+  cloud: "flowNodeCloud",
+  folder: "flowNodeFolder",
   predefined: "flowNodePredefined",
   preparation: "flowNodePreparation",
   merge: "flowNodeMerge",
   delay: "flowNodeDelay",
   summing: "flowNodeSumming",
   annotation: "flowNodeAnnotation",
+  loopLimit: "flowNodeLoopLimit",
+  collate: "flowNodeCollate",
+  controlTransfer: "flowNodeControlTransfer",
+  parallelMode: "flowNodeParallelMode",
+  frame: "flowNodeFrame",
+  chevron: "flowNodeChevron",
 };
 
 /** 形状库分组（对齐 Worktile：基础 / 数据 / 流程控制） */
 const PALETTE_GROUPS: { labelKey: Parameters<ReturnType<typeof useI18n>["t"]>[0]; kinds: FlowNodeKind[] }[] = [
   {
     labelKey: "flowGroupBasic",
-    kinds: ["start", "end", "process", "rounded", "decision", "io", "connector", "offpage"],
+    kinds: ["start", "end", "process", "rounded", "decision", "io", "connector", "offpage", "manualOperation", "or", "note", "card"],
   },
   {
     labelKey: "flowGroupData",
-    kinds: ["document", "multiDoc", "database", "internalStorage", "display", "manualInput"],
+    kinds: ["document", "multiDoc", "database", "internalStorage", "display", "manualInput", "tape", "directAccess", "paperTape", "storedData", "cloud", "folder"],
   },
   {
     labelKey: "flowGroupFlow",
-    kinds: ["predefined", "preparation", "merge", "delay", "summing", "annotation"],
+    kinds: ["predefined", "preparation", "merge", "delay", "summing", "annotation", "loopLimit", "collate", "controlTransfer", "parallelMode", "frame", "chevron"],
   },
 ];
 
