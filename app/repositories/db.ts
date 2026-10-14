@@ -11,6 +11,7 @@ import type { ProjectTemplate } from "~/models/projectTemplate";
 import type { TaskTemplate } from "~/models/taskTemplate";
 import type { Flow } from "~/models/flow";
 import type { SimDoc } from "~/models/simDoc";
+import type { MarkdownDoc } from "~/models/markdownDoc";
 
 export interface Preference {
   key: string;
@@ -31,6 +32,7 @@ class ProjectHubDB extends Dexie {
   taskTemplates!: EntityTable<TaskTemplate, "id">;
   flows!: EntityTable<Flow, "id">;
   simDocs!: EntityTable<SimDoc, "id">;
+  markdownDocs!: EntityTable<MarkdownDoc, "id">;
 
   constructor() {
     super("projecthub");
@@ -133,6 +135,10 @@ class ProjectHubDB extends Dexie {
     // v12：证件模拟器 —— 每种证面至多一份本地填写数据，按 type 查询
     this.version(12).stores({
       simDocs: "id, type",
+    });
+    // v13：Markdown 文档模块 —— 应用级独立文档（同 flows 模式），按更新时间排序查询
+    this.version(13).stores({
+      markdownDocs: "id, updatedAt",
     });
   }
 }

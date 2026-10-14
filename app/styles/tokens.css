@@ -98,6 +98,8 @@
   /* ----- 字体 ----- */
   --font-sans: "Inter", -apple-system, "PingFang SC", "Segoe UI",
     roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", sfmono-regular, menlo, consolas,
+    "Liberation Mono", monospace;
 
   /* ----- 动效（新代码优先使用具名档位） ----- */
   --motion-fast: 100ms ease;

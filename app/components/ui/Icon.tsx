@@ -34,7 +34,8 @@ export type IconName =
   | "cornerDownRight"
   | "pencil"
   | "workflow"
-  | "idcard";
+  | "idcard"
+  | "markdown";
 
 const PATHS: Record<IconName, React.ReactNode> = {
   kanban: (
@@ -241,6 +242,15 @@ const PATHS: Record<IconName, React.ReactNode> = {
       <path d="M5 16.5c.6-1.6 1.7-2.2 3-2.2s2.4.6 3 2.2" />
       <path d="M14.5 10h4.5" />
       <path d="M14.5 14h3.5" />
+    </>
+  ),
+  markdown: (
+    <>
+      <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+      <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+      <path d="M10 9H8" />
+      <path d="M16 13H8" />
+      <path d="M16 17H8" />
     </>
   ),
 };
