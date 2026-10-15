@@ -7,7 +7,7 @@ import { useI18n, t as translate } from "~/lib/i18n";
 import { Icon } from "~/components/ui/Icon";
 import { markdownDocSchema, type MarkdownDoc } from "~/models/markdownDoc";
 
-export const handle = { crumb: () => ({ label: translate("docsMenu"), to: "/docs" }) };
+export const handle = { crumb: () => ({ label: translate("markdownMenu"), to: "/markdown" }) };
 
 /** 文档编辑页：面包屑回到「文档」，编辑器铺满余下空间；文档被删时回列表 */
 export default function DocEditorRoute() {
@@ -25,7 +25,7 @@ export default function DocEditorRoute() {
     }).subscribe((row) => {
       setDoc((prev) => {
         // 从有到无 = 文档被删除（列表页删除后回到列表，而不是留在空白编辑页）
-        if (row === null && prev) navigate("/docs", { replace: true });
+        if (row === null && prev) navigate("/markdown", { replace: true });
         return row;
       });
     });
@@ -53,11 +53,11 @@ export default function DocEditorRoute() {
         <button
           type="button"
           className="doc-page__back"
-          onClick={() => navigate("/docs")}
+          onClick={() => navigate("/markdown")}
           aria-label={t("backToDocs")}
         >
           <Icon name="back" size={15} />
-          {t("docsMenu")}
+          {t("markdownMenu")}
         </button>
       </div>
       <MarkdownEditor key={docId} doc={doc} />

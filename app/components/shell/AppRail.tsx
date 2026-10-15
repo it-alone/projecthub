@@ -27,7 +27,8 @@ export function AppRail({ onSearch }: { onSearch: () => void }) {
       {item({ to: "/", icon: "home", label: t("workbench") })}
       {item({ to: "/projects", icon: "kanban", label: t("projects") })}
       {item({ to: "/flows", icon: "workflow", label: t("flowsMenu") })}
-      {item({ to: "/docs", icon: "markdown", label: t("docsMenu") })}
+      {item({ to: "/docs", icon: "fileText", label: t("docsMenu") })}
+      {item({ to: "/markdown", icon: "markdown", label: t("markdownMenu") })}
       {item({ to: "/simulator", icon: "idcard", label: t("simulatorMenu") })}
       {item({ to: "/users", icon: "user", label: t("usersMenu") })}
       <span className="rail__spacer" />
