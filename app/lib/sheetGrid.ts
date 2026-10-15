@@ -3,6 +3,7 @@ import { sheetPageSchema, type SheetCell, type SheetCellStyle, type SheetPage } 
 import {
   evaluateSheet,
   formatCellValue,
+  offsetFormulaRefs,
   parseRefKey,
   refKey,
   shiftFormulaRefs,
@@ -63,8 +64,11 @@ export function writeCell(page: SheetPage, pos: GridPos, v: string): SheetPage {
   return { ...page, cells };
 }
 
-/** 选区内统一切换加粗/斜体：on=false 时显式移除该样式键 */
-export function toggleStyle(page: SheetPage, range: GridRange, key: "b" | "i", on: boolean): SheetPage {
+/** 样式开关键（加粗/斜体/下划线/删除线共用同一形状） */
+export type SheetStyleKey = "b" | "i" | "u" | "s";
+
+/** 选区内统一切换样式：on=false 时显式移除该样式键 */
+export function toggleStyle(page: SheetPage, range: GridRange, key: SheetStyleKey, on: boolean): SheetPage {
   const cells = { ...page.cells };
   for (let r = range.r1; r <= range.r2; r++) {
     for (let c = range.c1; c <= range.c2; c++) {
@@ -169,9 +173,35 @@ export function deleteCol(page: SheetPage, at: number): SheetPage {
   return { ...page, cols: Math.max(1, page.cols - 1), cells };
 }
 
-/** 追加 n 行（封顶），用于「+20 行」按钮与粘贴扩容 */
+/** 追加 n 行（封顶），用于焦点触底自动扩行与粘贴扩容 */
 export function addRows(page: SheetPage, n: number): SheetPage {
   return { ...page, rows: Math.min(SHEET_MAX_ROWS, page.rows + n) };
+}
+
+/**
+ * 填充柄：以 src 为模板填充 dst（dst 必须是 src 沿单轴的延伸，且包含 src）。
+ * 目标格沿填充轴按 src 长度取模回溯到源格：值照抄、公式引用按位移平移（Excel 相对引用）、
+ * 样式随行；src 自身的格子不动，目标处原有内容被覆盖。
+ */
+export function fillRange(page: SheetPage, src: GridRange, dst: GridRange): SheetPage {
+  const axis: "col" | "row" = dst.c1 !== src.c1 || dst.c2 !== src.c2 ? "col" : "row";
+  const srcLen = axis === "col" ? src.c2 - src.c1 + 1 : src.r2 - src.r1 + 1;
+  const cells = { ...page.cells };
+  for (let r = dst.r1; r <= dst.r2; r++) {
+    for (let c = dst.c1; c <= dst.c2; c++) {
+      if (c >= src.c1 && c <= src.c2 && r >= src.r1 && r <= src.r2) continue; // 源区不动
+      // 双向填充都成立：负方向位移取正模（向左/向上填充时源在尾部循环）
+      const back = (((axis === "col" ? c - src.c1 : r - src.r1) % srcLen) + srcLen) % srcLen;
+      const fromC = axis === "col" ? src.c1 + back : c;
+      const fromR = axis === "row" ? src.r1 + back : r;
+      const from = cells[refKey(fromC, fromR)];
+      const v = from ? (from.v.startsWith("=") ? offsetFormulaRefs(from.v, c - fromC, r - fromR) : from.v) : "";
+      const key = refKey(c, r);
+      if (v === "" && !from?.s) delete cells[key];
+      else cells[key] = { v, ...(from?.s ? { s: from.s } : {}) };
+    }
+  }
+  return { ...page, cells };
 }
 
 /** 从 start 起写入一块文本（粘贴展开）；行列不足时按需扩容（封顶），返回写到的结束坐标 */

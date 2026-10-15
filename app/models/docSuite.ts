@@ -10,6 +10,8 @@ import { z } from "zod";
 export const sheetCellStyleSchema = z.object({
   b: z.literal(true).optional(), // 加粗
   i: z.literal(true).optional(), // 斜体
+  u: z.literal(true).optional(), // 下划线
+  s: z.literal(true).optional(), // 删除线
   a: z.enum(["left", "center", "right"]).optional(), // 水平对齐
 });
 export type SheetCellStyle = z.infer<typeof sheetCellStyleSchema>;

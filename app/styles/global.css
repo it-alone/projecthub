@@ -6577,7 +6577,7 @@ select.input {
   border-color: transparent;
 }
 
-.suite-toolbar,
+.sheet-toolbar,
 .sheet-bar {
   display: flex;
   flex-wrap: wrap;
@@ -6600,7 +6600,7 @@ select.input {
 }
 
 .suite-toolbar__divider,
-.sheet-bar__divider {
+.sheet-toolbar__divider {
   flex: none;
   width: 1px;
   height: 18px;
@@ -6664,9 +6664,91 @@ select.input {
   transform: scaleX(-1);
 }
 
-.suite-toolbar__spacer,
-.sheet-bar__spacer {
-  flex: 1;
+/* ---------- 飞书式文档：顶栏动作组 / 划选浮动工具栏 / 块把手 ---------- */
+.doc-page__actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: auto;
+}
+
+/* 画布内大标题（覆盖顶栏版小标题的紧凑版式） */
+.suite-doc__title--canvas {
+  display: block;
+  width: 100%;
+  max-width: none;
+  margin: 0 0 var(--space-3);
+  padding: var(--space-1) 0;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.doc-float-bar {
+  position: fixed;
+  z-index: 80;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.doc-block-handle {
+  position: fixed;
+  z-index: 60;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  font-size: 12px;
+  letter-spacing: -1px;
+  color: var(--color-text-muted);
+  cursor: grab;
+  user-select: none;
+}
+
+.doc-block-handle:hover {
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+}
+
+.doc-block-menu {
+  position: fixed;
+  z-index: 80;
+  min-width: 150px;
+  padding: 4px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.doc-block-menu__item {
+  display: block;
+  width: 100%;
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  font-size: 13px;
+  color: var(--color-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.doc-block-menu__item:hover {
+  background: var(--color-surface-muted);
 }
 
 /* ---------- 飞书式文档：纸张排版 ---------- */
@@ -6691,7 +6773,7 @@ select.input {
 .suite-doc__placeholder {
   position: absolute;
   left: 48px;
-  top: 44px;
+  top: 132px; /* 画布顶部现在是大标题，占位提示下移到正文区 */
   margin: 0;
   font-size: 15px;
   color: var(--color-text-muted);
@@ -6885,6 +6967,34 @@ select.input {
   outline-offset: -2px;
 }
 
+/* 公式栏确认/取消（编辑中可见）：✓ 走主题色、✗ 走危险色，一望即知 */
+.sheet-bar__btn {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.sheet-bar__btn.is-ok {
+  color: var(--color-success);
+}
+
+.sheet-bar__btn.is-cancel {
+  color: var(--color-danger);
+}
+
+.sheet-bar__btn:hover {
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+}
+
 /* 对齐字形：三条短杠按左/中/右排布（图标库无对齐图标，svg 又受规范收敛） */
 .sheet-glyph {
   display: block;
@@ -7013,6 +7123,8 @@ select.input {
 }
 
 .sheet-td {
+  /* 单元格输入框与填充柄都以格为定位基准 */
+  position: relative;
   height: 30px;
   padding: 0 var(--space-2);
   border-top: 2px solid transparent;
@@ -7033,6 +7145,14 @@ select.input {
 
 .sheet-td.is-i {
   font-style: italic;
+}
+
+.sheet-td.is-u {
+  text-decoration: underline;
+}
+
+.sheet-td.is-s {
+  text-decoration: line-through;
 }
 
 .sheet-td.is-center {
@@ -7080,6 +7200,25 @@ select.input {
 
 .sheet-td.is-editing {
   overflow: visible;
+}
+
+/* 填充柄：选区右下角小方块（虚线框拖拽预览在 is-fill-preview） */
+.sheet-fill-handle {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  z-index: 2;
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--color-surface);
+  border-radius: 1px;
+  background: var(--color-primary);
+  cursor: crosshair;
+}
+
+.sheet-td.is-fill-preview {
+  background: var(--color-primary-soft);
+  box-shadow: inset 0 0 0 1px var(--color-primary);
 }
 
 .sheet-cell-input {

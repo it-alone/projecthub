@@ -15,10 +15,12 @@ import {
   refKey,
 } from "~/lib/sheetFormula";
 import {
+  SHEET_MAX_ROWS,
   addRows,
   clearRange,
   deleteCol,
   deleteRow,
+  fillRange,
   insertCol,
   insertRow,
   newPage,
@@ -32,6 +34,8 @@ import {
   writeBlock,
   writeCell,
   type GridPos,
+  type GridRange,
+  type SheetStyleKey,
 } from "~/lib/sheetGrid";
 
 type SaveState = "saved" | "saving" | "error";
@@ -67,16 +71,22 @@ export function SheetEditor({ file }: SheetEditorProps) {
     anchor: { c: 0, r: 0 },
     focus: { c: 0, r: 0 },
   });
-  const [editing, setEditing] = useState<{ pos: GridPos; draft: string } | null>(null);
+  // source 标记编辑入口：cell = 单元格内输入（ autoFocus 抢焦点），fx = 公式栏输入（不能抢走公式栏焦点）
+  const [editing, setEditing] = useState<{ pos: GridPos; draft: string; source: "cell" | "fx" } | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [renamingTab, setRenamingTab] = useState<string | null>(null);
   const [tabDraft, setTabDraft] = useState("");
   const [pendingDeleteTab, setPendingDeleteTab] = useState<SheetPage | null>(null);
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [resizing, setResizing] = useState<{ c: number; startX: number; startW: number } | null>(null);
+  const [fill, setFill] = useState<{ src: GridRange; dst: GridRange } | null>(null);
 
   const gridRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef(false);
+  // 填充柄拖拽中：记录源选区；mouseup 时按最新预览 dst 落盘
+  const fillDragRef = useRef<GridRange | null>(null);
+  const fillRef = useRef<{ src: GridRange; dst: GridRange } | null>(null);
+  fillRef.current = fill;
 
   // 撤销/重做栈存页签快照（上限 50 步）；所有数据变更都经 applyPages 入栈
   const undoRef = useRef<SheetPage[][]>([]);
@@ -164,8 +174,24 @@ export function SheetEditor({ file }: SheetEditorProps) {
     });
   }
 
+  /* 焦点触底自动补行（飞书/Excel 的无限行体验）：规模变化不是数据编辑，不入撤销栈 */
+  useEffect(() => {
+    if (sel.focus.r < page.rows - 1 || page.rows >= SHEET_MAX_ROWS) return;
+    setPages((prev) => prev.map((p) => (p.id === page.id ? addRows(p, 20) : p)));
+  }, [sel.focus.r, page.rows, page.id]);
+
   function startEdit(initial: string, at?: GridPos) {
-    setEditing({ pos: at ?? sel.focus, draft: initial });
+    setEditing({ pos: at ?? sel.focus, draft: initial, source: "cell" });
+  }
+
+  /** 从公式栏进入编辑：不渲染单元格输入框，避免 autoFocus 抢走公式栏焦点 */
+  function startFxEdit() {
+    if (editing) return;
+    setEditing({ pos: sel.focus, draft: focusRaw, source: "fx" });
+  }
+  function cancelEdit() {
+    setEditing(null);
+    gridRef.current?.focus();
   }
 
   function commitEdit(move: "down" | "right" | null) {
@@ -264,25 +290,63 @@ export function SheetEditor({ file }: SheetEditorProps) {
     setSel({ anchor: start, focus: clampTo(nextPage, end) });
   }
 
-  /* ----- 鼠标选区 / 拖选 ----- */
+  /* ----- 鼠标选区 / 拖选 / 填充柄 ----- */
   useEffect(() => {
     const stop = () => {
       draggingRef.current = false;
+      if (fillDragRef.current) {
+        const src = fillDragRef.current;
+        const dst = fillRef.current?.dst ?? src;
+        fillDragRef.current = null;
+        setFill(null);
+        // 拖出了范围才落盘：dst 比 src 大即执行填充并把选区切到填充结果
+        if (dst.c1 !== src.c1 || dst.c2 !== src.c2 || dst.r1 !== src.r1 || dst.r2 !== src.r2) {
+          applyPages(pagesRef.current.map((p) => (p.id === page.id ? fillRange(p, src, dst) : p)));
+          setSel({ anchor: { c: dst.c1, r: dst.r1 }, focus: { c: dst.c2, r: dst.r2 } });
+        }
+      }
     };
     window.addEventListener("mouseup", stop);
     return () => window.removeEventListener("mouseup", stop);
-  }, []);
+  }, [applyPages, page.id]);
+
+  /** 填充目标：源选区沿单轴延伸到指针格（Excel 语义；斜向拖拽取延伸更大的一轴） */
+  function fillDst(src: GridRange, pos: GridPos): GridRange {
+    const dC = pos.c < src.c1 ? src.c1 - pos.c : pos.c > src.c2 ? pos.c - src.c2 : 0;
+    const dR = pos.r < src.r1 ? src.r1 - pos.r : pos.r > src.r2 ? pos.r - src.r2 : 0;
+    if (dC === 0 && dR === 0) return src;
+    if (dR === 0 || (dC > 0 && dC >= dR)) {
+      return { r1: src.r1, r2: src.r2, c1: Math.min(src.c1, pos.c), c2: Math.max(src.c2, pos.c) };
+    }
+    return { c1: src.c1, c2: src.c2, r1: Math.min(src.r1, pos.r), r2: Math.max(src.r2, pos.r) };
+  }
+
+  function startFillDrag(e: React.MouseEvent) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    gridRef.current?.focus();
+    const src = range;
+    fillDragRef.current = src;
+    setFill({ src, dst: src });
+  }
 
   function cellMouseDown(e: React.MouseEvent, c: number, r: number) {
     if (e.button !== 0) return;
     e.preventDefault(); // 阻止文本选中，焦点由网格容器持有
     gridRef.current?.focus();
+    // 公式栏编辑中点别处 = 放弃编辑（Excel 语义：不落盘）
+    if (editing?.source === "fx") setEditing(null);
     const pos = { c, r };
     setSel((prev) => ({ anchor: e.shiftKey ? prev.anchor : pos, focus: pos }));
     draggingRef.current = true;
   }
 
   function cellMouseEnter(c: number, r: number) {
+    if (fillDragRef.current) {
+      setFill((prev) => (prev ? { ...prev, dst: fillDst(prev.src, { c, r }) } : prev));
+      return;
+    }
     if (!draggingRef.current) return;
     setSel((prev) => ({ ...prev, focus: { c, r } }));
   }
@@ -412,7 +476,7 @@ export function SheetEditor({ file }: SheetEditorProps) {
   }
 
   /* ----- 工具栏格式动作 ----- */
-  function rangeHas(style: "b" | "i"): boolean {
+  function rangeHas(style: SheetStyleKey): boolean {
     for (let r = range.r1; r <= range.r2; r++) {
       for (let c = range.c1; c <= range.c2; c++) {
         if (!page.cells[refKey(c, r)]?.s?.[style]) return false;
@@ -420,7 +484,7 @@ export function SheetEditor({ file }: SheetEditorProps) {
     }
     return true;
   }
-  function applyStyleToggle(style: "b" | "i") {
+  function applyStyleToggle(style: SheetStyleKey) {
     const on = !rangeHas(style);
     applyPages(pagesRef.current.map((p) => (p.id === page.id ? toggleStyle(p, range, style, on) : p)));
   }
@@ -431,6 +495,8 @@ export function SheetEditor({ file }: SheetEditorProps) {
   function clearStyle() {
     let next = toggleStyle(page, range, "b", false);
     next = toggleStyle(next, range, "i", false);
+    next = toggleStyle(next, range, "u", false);
+    next = toggleStyle(next, range, "s", false);
     next = setAlign(next, range, null);
     const settled = next;
     applyPages(pagesRef.current.map((p) => (p.id === page.id ? settled : p)));
@@ -579,53 +645,50 @@ export function SheetEditor({ file }: SheetEditorProps) {
         </button>
       </div>
 
-      <div className="sheet-bar" role="toolbar" aria-label={t("sheetGridLabel")}>
-        <output className="sheet-bar__name" aria-label={t("sheetNameBoxLabel")}>
-          {nameBox}
-        </output>
-        <span className="sheet-bar__fx" aria-hidden>
-          fx
-        </span>
-        <input
-          className="sheet-bar__formula"
-          value={formulaValue}
-          onChange={(e) => setEditing({ pos: sel.focus, draft: e.target.value })}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              commitEdit(null);
-            }
-            if (e.key === "Escape") {
-              e.preventDefault();
-              setEditing(null);
-              gridRef.current?.focus();
-            }
-          }}
-          aria-label={t("sheetFormulaLabel")}
-          spellCheck={false}
-        />
-        <span className="sheet-bar__divider" aria-hidden />
+      {/* 飞书式工具栏：撤销/重做 + 字体样式 + 对齐 + 清格式（与网格选区联动） */}
+      <div className="sheet-toolbar" role="toolbar" aria-label={t("sheetToolbarLabel")}>
         <button
           type="button"
-          className={`suite-toolbar__btn is-b${rangeHas("b") ? " is-active" : ""}`}
-          title={t("suiteTbBold")}
-          aria-label={t("suiteTbBold")}
-          aria-pressed={rangeHas("b")}
-          onClick={() => applyStyleToggle("b")}
+          className="suite-toolbar__btn"
+          title={t("suiteTbUndo")}
+          aria-label={t("suiteTbUndo")}
+          onClick={undo}
+          disabled={!undoRef.current.length}
         >
-          B
+          <Icon name="back" size={15} />
         </button>
         <button
           type="button"
-          className={`suite-toolbar__btn is-i${rangeHas("i") ? " is-active" : ""}`}
-          title={t("suiteTbItalic")}
-          aria-label={t("suiteTbItalic")}
-          aria-pressed={rangeHas("i")}
-          onClick={() => applyStyleToggle("i")}
+          className="suite-toolbar__btn suite-toolbar__btn--flip"
+          title={t("suiteTbRedo")}
+          aria-label={t("suiteTbRedo")}
+          onClick={redo}
+          disabled={!redoRef.current.length}
         >
-          I
+          <Icon name="back" size={15} />
         </button>
-        <span className="sheet-bar__divider" aria-hidden />
+        <span className="sheet-toolbar__divider" aria-hidden />
+        {(
+          [
+            { key: "b", label: "B", labelKey: "suiteTbBold", cls: "is-b" },
+            { key: "i", label: "I", labelKey: "suiteTbItalic", cls: "is-i" },
+            { key: "u", label: "U", labelKey: "suiteTbUnderline", cls: "is-u" },
+            { key: "s", label: "S", labelKey: "suiteTbStrike", cls: "is-s" },
+          ] as const
+        ).map((it) => (
+          <button
+            key={it.key}
+            type="button"
+            className={`suite-toolbar__btn ${it.cls}${rangeHas(it.key) ? " is-active" : ""}`}
+            title={t(it.labelKey)}
+            aria-label={t(it.labelKey)}
+            aria-pressed={rangeHas(it.key)}
+            onClick={() => applyStyleToggle(it.key)}
+          >
+            {it.label}
+          </button>
+        ))}
+        <span className="sheet-toolbar__divider" aria-hidden />
         {(["left", "center", "right"] as const).map((a) => (
           <button
             key={a}
@@ -649,15 +712,66 @@ export function SheetEditor({ file }: SheetEditorProps) {
         >
           <Icon name="close" size={15} />
         </button>
-        <span className="sheet-bar__spacer" />
-        <button
-          type="button"
-          className="btn"
-          onClick={() => applyPages(pagesRef.current.map((p) => (p.id === page.id ? addRows(p, 20) : p)))}
-        >
-          <Icon name="plus" size={14} />
-          {t("sheetAddRows")}
-        </button>
+      </div>
+
+      {/* 名称框 + 公式栏：编辑中给 ✓/✗ 确认取消（飞书交互） */}
+      <div className="sheet-bar">
+        <output className="sheet-bar__name" aria-label={t("sheetNameBoxLabel")}>
+          {nameBox}
+        </output>
+        <span className="sheet-bar__fx" aria-hidden>
+          fx
+        </span>
+        <input
+          className="sheet-bar__formula"
+          value={formulaValue}
+          onFocus={startFxEdit}
+          onChange={(e) =>
+            setEditing((prev) =>
+              prev
+                ? { ...prev, draft: e.target.value }
+                : { pos: sel.focus, draft: e.target.value, source: "fx" },
+            )
+          }
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              commitEdit(null);
+            }
+            if (e.key === "Tab") {
+              e.preventDefault();
+              commitEdit("right");
+            }
+            if (e.key === "Escape") {
+              e.preventDefault();
+              cancelEdit();
+            }
+          }}
+          aria-label={t("sheetFormulaLabel")}
+          spellCheck={false}
+        />
+        {editing && (
+          <>
+            <button
+              type="button"
+              className="sheet-bar__btn is-ok"
+              title={t("sheetFxOk")}
+              aria-label={t("sheetFxOk")}
+              onClick={() => commitEdit(null)}
+            >
+              <Icon name="check" size={14} />
+            </button>
+            <button
+              type="button"
+              className="sheet-bar__btn is-cancel"
+              title={t("sheetFxCancel")}
+              aria-label={t("sheetFxCancel")}
+              onClick={cancelEdit}
+            >
+              <Icon name="close" size={14} />
+            </button>
+          </>
+        )}
       </div>
 
       <div
@@ -860,7 +974,7 @@ export function SheetEditor({ file }: SheetEditorProps) {
     </div>
   );
 
-  /** 单元格渲染（选中态边框、编辑态输入框、公式结果展示都在这里） */
+  /** 单元格渲染（选中态边框、编辑态输入框、填充柄、公式结果展示都在这里） */
   function renderCell(c: number, r: number) {
     const key = refKey(c, r);
     const cell = page.cells[key];
@@ -868,6 +982,10 @@ export function SheetEditor({ file }: SheetEditorProps) {
     const inRange = c >= range.c1 && c <= range.c2 && r >= range.r1 && r <= range.r2;
     const isFocus = sel.focus.c === c && sel.focus.r === r;
     const isEditingHere = editing !== null && editing.pos.c === c && editing.pos.r === r;
+    const inFillSrc =
+      fill !== null && c >= fill.src.c1 && c <= fill.src.c2 && r >= fill.src.r1 && r <= fill.src.r2;
+    const inFillDst =
+      fill !== null && c >= fill.dst.c1 && c <= fill.dst.c2 && r >= fill.dst.r1 && r <= fill.dst.r2;
     const cls = ["sheet-td"];
     if (inRange) cls.push("is-in-range");
     if (inRange && r === range.r1) cls.push("is-r-top");
@@ -875,9 +993,12 @@ export function SheetEditor({ file }: SheetEditorProps) {
     if (inRange && c === range.c1) cls.push("is-r-left");
     if (inRange && c === range.c2) cls.push("is-r-right");
     if (isFocus) cls.push("is-focus");
+    if (inFillDst && !inFillSrc) cls.push("is-fill-preview");
     if (isEditingHere) cls.push("is-editing");
     if (cell?.s?.b) cls.push("is-b");
     if (cell?.s?.i) cls.push("is-i");
+    if (cell?.s?.u) cls.push("is-u");
+    if (cell?.s?.s) cls.push("is-s");
     if (cell?.s?.a === "center") cls.push("is-center");
     else if (cell?.s?.a === "right") cls.push("is-right");
     else if (typeof value === "number") cls.push("is-num"); // 数字默认右对齐（Excel 惯例）
@@ -894,7 +1015,8 @@ export function SheetEditor({ file }: SheetEditorProps) {
         onDoubleClick={() => startEdit(cell?.v ?? "")}
         onContextMenu={(e) => openMenu(e, { kind: "cell", pos: { c, r } })}
       >
-        {isEditingHere ? (
+        {/* 编辑中 fx 来源不渲染输入框（否则 autoFocus 会抢走公式栏焦点） */}
+        {editing !== null && isEditingHere && editing.source === "cell" ? (
           <input
             className="sheet-cell-input"
             value={editing.draft}
@@ -923,6 +1045,10 @@ export function SheetEditor({ file }: SheetEditorProps) {
           ""
         ) : (
           formatCellValue(value)
+        )}
+        {/* 填充柄：选区右下角小方块，纯指针交互，对读屏隐藏（键盘用户可复制粘贴达成同样效果） */}
+        {editing === null && c === range.c2 && r === range.r2 && (
+          <span className="sheet-fill-handle" aria-hidden="true" onMouseDown={startFillDrag} />
         )}
       </td>
     );

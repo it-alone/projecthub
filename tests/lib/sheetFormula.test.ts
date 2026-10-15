@@ -8,6 +8,7 @@ import {
   parseNumberLiteral,
   parseRefKey,
   refKey,
+  offsetFormulaRefs,
   shiftFormulaRefs,
 } from "~/lib/sheetFormula";
 
@@ -169,6 +170,29 @@ describe("shiftFormulaRefs：行列增删后的公式改写", () => {
   it("非公式文本与不合法公式原样返回", () => {
     expect(shiftFormulaRefs("plain text", "row", (n) => n + 1)).toBe("plain text");
     expect(shiftFormulaRefs("=1+", "row", (n) => n + 1)).toBe("=1+");
+  });
+});
+
+describe("offsetFormulaRefs：填充柄相对引用平移", () => {
+  it("单引用与区域端点都按 (dc, dr) 平移", () => {
+    expect(offsetFormulaRefs("=A1+B1", 0, 1)).toBe("=A2+B2");
+    expect(offsetFormulaRefs("=SUM(A1:B3)", 1, 2)).toBe("=SUM(B3:C5)");
+    expect(offsetFormulaRefs("=A1*2", 2, 0)).toBe("=C1*2");
+  });
+
+  it("零偏移与非公式文本原样返回", () => {
+    expect(offsetFormulaRefs("=A1+B1", 0, 0)).toBe("=A1+B1");
+    expect(offsetFormulaRefs("plain", 1, 1)).toBe("plain");
+  });
+
+  it("负向平移越界钳到 0（A1 上移一格仍在 A1）", () => {
+    expect(offsetFormulaRefs("=A1", -1, -1)).toBe("=A1");
+    expect(offsetFormulaRefs("=B2+A1", -1, -1)).toBe("=A1+A1");
+  });
+
+  it("平移后仍可正常求值（下拉 =A1+B1 后引用下一行）", () => {
+    const ctx = ctxOf({ A1: "1", B1: "2", A2: "10", B2: "20" });
+    expect(evalFormula(offsetFormulaRefs("=A1+B1", 0, 1), ctx)).toEqual({ ok: true, value: 30 });
   });
 });
 

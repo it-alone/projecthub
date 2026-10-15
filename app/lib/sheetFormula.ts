@@ -609,6 +609,56 @@ export function evaluateSheet(cells: Record<string, { v?: string }>): Map<string
 }
 
 /**
+ * 填充柄拖拽时整体平移公式引用（含区域端点）：所有引用加 (dc, dr) 偏移。
+ * 相对引用语义与 Excel 一致——=A1+B1 下拉一格变 =A2+B2。
+ * 偏移后越界（负坐标）的引用钳到 0，避免产生非法引用键；非法公式原样返回。
+ */
+export function offsetFormulaRefs(src: string, dc: number, dr: number): string {
+  if (dc === 0 && dr === 0) return src;
+  let body = src;
+  let eq = "";
+  if (body.trimStart().startsWith("=")) {
+    const idx = src.indexOf("=");
+    eq = src.slice(0, idx + 1);
+    body = src.slice(idx + 1);
+  }
+  let spans: TokSpan[];
+  try {
+    spans = tokenizeSpans(body);
+  } catch {
+    return src;
+  }
+  const clamp = (n: number, d: number) => Math.max(0, n + d);
+  let out = "";
+  let last = 0;
+  const writeRef = (start: number, end: number, col: number, row: number) => {
+    out += body.slice(last, start);
+    out += refKey(clamp(col, dc), clamp(row, dr));
+    last = end;
+  };
+  for (let i = 0; i < spans.length; i++) {
+    const s = spans[i]!;
+    if (s.tok.t !== "ref") continue;
+    const colon = spans[i + 1];
+    const next = spans[i + 2];
+    if (colon?.tok.t === "punc" && colon.tok.v === ":" && next?.tok.t === "ref") {
+      out += body.slice(last, s.start);
+      const c1 = clamp(s.tok.col, dc);
+      const r1 = clamp(s.tok.row, dr);
+      const c2 = clamp(next.tok.col, dc);
+      const r2 = clamp(next.tok.row, dr);
+      out += `${refKey(Math.min(c1, c2), Math.min(r1, r2))}:${refKey(Math.max(c1, c2), Math.max(r1, r2))}`;
+      last = next.end;
+      i += 2;
+    } else {
+      writeRef(s.start, s.end, s.tok.col, s.tok.row);
+    }
+  }
+  out += body.slice(last);
+  return eq + out;
+}
+
+/**
  * 行列增删后改写公式里的引用（含区域端点）：
  * mapper 决定旧坐标 → 新坐标；被改写的引用按原 token 区间原位替换，其余原文保留。
  */

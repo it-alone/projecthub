@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { evaluateSheet } from "~/lib/sheetFormula";
 import {
   SHEET_MAX_COLS,
   SHEET_MAX_ROWS,
   addRows,
   clearRange,
   deleteCol,
+  fillRange,
   deleteRow,
   insertCol,
   insertRow,
@@ -161,5 +163,61 @@ describe("sheetGrid：剪贴板与导出", () => {
 
   it("normRange 端点取小大", () => {
     expect(normRange({ c: 3, r: 5 }, { c: 1, r: 2 })).toEqual({ c1: 1, r1: 2, c2: 3, r2: 5 });
+  });
+});
+
+describe("fillRange：填充柄", () => {
+  it("值照抄、样式随行、源区不动", () => {
+    let p = newPage("S");
+    p = writeCell(p, { c: 0, r: 0 }, "x");
+    p = { ...p, cells: { ...p.cells, A1: { v: "x", s: { b: true } } } };
+    p = fillRange(p, R(0, 0, 0, 0), R(0, 0, 0, 2));
+    expect(p.cells.A1).toEqual({ v: "x", s: { b: true } });
+    expect(p.cells.A2).toEqual({ v: "x", s: { b: true } });
+    expect(p.cells.A3).toEqual({ v: "x", s: { b: true } });
+  });
+
+  it("公式按相对引用平移（下拉 =A1+B1 → =A2+B2）", () => {
+    let p = newPage("S");
+    p = writeCell(p, { c: 2, r: 0 }, "=A1+B1");
+    p = fillRange(p, R(2, 0, 2, 0), R(2, 0, 2, 2));
+    expect(p.cells.C2?.v).toBe("=A2+B2");
+    expect(p.cells.C3?.v).toBe("=A3+B3");
+  });
+
+  it("多行源按行循环（周期 = 源长度）", () => {
+    let p = newPage("S");
+    p = writeCell(writeCell(p, { c: 0, r: 0 }, "a"), { c: 0, r: 1 }, "b");
+    p = fillRange(p, R(0, 0, 0, 1), R(0, 0, 0, 3));
+    expect(p.cells.A2?.v).toBe("b");
+    expect(p.cells.A3?.v).toBe("a"); // 回到源首行
+  });
+
+  it("横向填充与向左（负方向）填充", () => {
+    let p = newPage("S");
+    p = writeCell(p, { c: 1, r: 0 }, "=B2");
+    p = fillRange(p, R(1, 0, 1, 0), R(1, 0, 3, 0));
+    expect(p.cells.C1?.v).toBe("=C2");
+    expect(p.cells.D1?.v).toBe("=D2");
+    // 源在 B1，向左填到 A1：引用同样左移一格
+    p = fillRange(p, R(1, 0, 1, 0), R(0, 0, 1, 0));
+    expect(p.cells.A1?.v).toBe("=A2");
+  });
+
+  it("空源格填充会清掉目标处已有内容（保持稀疏）", () => {
+    let p = newPage("S");
+    p = writeCell(p, { c: 0, r: 2 }, "old");
+    p = fillRange(p, R(0, 0, 0, 0), R(0, 0, 0, 2));
+    expect(p.cells.A3).toBeUndefined();
+  });
+
+  it("填充后公式立即可求值（evaluateSheet 联动）", () => {
+    let p = newPage("S");
+    p = writeCell(writeCell(p, { c: 0, r: 0 }, "1"), { c: 0, r: 1 }, "2");
+    p = writeCell(p, { c: 1, r: 0 }, "=A1*10");
+    p = fillRange(p, R(1, 0, 1, 0), R(1, 0, 1, 1));
+    const display = evaluateSheet(p.cells);
+    expect(display.get("B1")).toBe(10);
+    expect(display.get("B2")).toBe(20);
   });
 });
