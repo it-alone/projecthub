@@ -109,3 +109,96 @@ describe("docJsonToMarkdown：行内标记", () => {
     expect(docJsonToMarkdown(doc(para(text("x", ["bold", "italic"]))))).toBe("***x***");
   });
 });
+
+describe("docJsonToMarkdown：待办与表格（功能增强块）", () => {
+  const taskItem = (t: string, checked = false): JSONContent => ({
+    type: "taskItem",
+    attrs: { checked },
+    content: [para(text(t))],
+  });
+
+  it("待办列表导出 - [ ] / - [x]；嵌套缩进", () => {
+    const list: JSONContent = {
+      type: "taskList",
+      content: [taskItem("买牛奶"), taskItem("交报告", true)],
+    };
+    expect(docJsonToMarkdown(doc(list))).toBe("- [ ] 买牛奶\n- [x] 交报告");
+
+    const nested: JSONContent = {
+      type: "taskList",
+      content: [
+        {
+          type: "taskItem",
+          attrs: { checked: false },
+          content: [para(text("子")), { type: "taskList", content: [taskItem("孙")] }],
+        },
+      ],
+    };
+    expect(docJsonToMarkdown(doc(nested))).toBe("- [ ] 子\n  - [ ] 孙");
+  });
+
+  it("表格导出 GFM 管道表，单元格内竖杠转义", () => {
+    const table: JSONContent = {
+      type: "table",
+      content: [
+        {
+          type: "tableRow",
+          content: [
+            { type: "tableHeader", content: [para(text("列一"))] },
+            { type: "tableHeader", content: [para(text("列二"))] },
+          ],
+        },
+        {
+          type: "tableRow",
+          content: [
+            { type: "tableCell", content: [para(text("a|b"))] },
+            { type: "tableCell", content: [para(text("c"))] },
+          ],
+        },
+      ],
+    };
+    expect(docJsonToMarkdown(doc(table))).toBe("| 列一 | 列二 |\n| --- | --- |\n| a\\|b | c |");
+  });
+
+  it("文字/背景色保留行内 HTML（GFM 无原生语法）", () => {
+    const colored: JSONContent = para({
+      type: "text",
+      text: "红字",
+      marks: [{ type: "textStyle", attrs: { color: "#dc2626", backgroundColor: "#fee2e2" } }],
+    });
+    expect(docJsonToMarkdown(doc(colored))).toBe(
+      '<span style="color:#dc2626"><span style="background-color:#fee2e2">红字</span></span>',
+    );
+  });
+});
+
+describe("链接与多色高亮、字号导出（第四期）", () => {
+  it("链接包最外层 [文本](href)", () => {
+    const linked = para({
+      type: "text",
+      text: "官网",
+      marks: [{ type: "link", attrs: { href: "https://example.com" } }],
+    });
+    expect(docJsonToMarkdown(doc(linked))).toBe("[官网](https://example.com)");
+  });
+
+  it("多色高亮带 style；无色高亮退回纯 mark", () => {
+    const colored = para({
+      type: "text",
+      text: "重点",
+      marks: [{ type: "highlight", attrs: { color: "#fde047" } }],
+    });
+    expect(docJsonToMarkdown(doc(colored))).toBe('<mark style="background-color:#fde047">重点</mark>');
+    const plain = para({ type: "text", text: "重点", marks: [{ type: "highlight" }] });
+    expect(docJsonToMarkdown(doc(plain))).toBe("<mark>重点</mark>");
+  });
+
+  it("字号与文字色嵌套导出", () => {
+    const sized = para({
+      type: "text",
+      text: "大字",
+      marks: [{ type: "textStyle", attrs: { fontSize: "24px", color: "#dc2626" } }],
+    });
+    expect(docJsonToMarkdown(doc(sized))).toBe('<span style="color:#dc2626"><span style="font-size:24px">大字</span></span>');
+  });
+});

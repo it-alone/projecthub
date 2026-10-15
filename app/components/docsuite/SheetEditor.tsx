@@ -10,14 +10,17 @@ import type { DocFile, SheetPage } from "~/models/docSuite";
 import {
   colToName,
   evaluateSheet,
+  formatCellWithStyle,
   formatCellValue,
   isFormulaErrorCode,
+  parseRefKey,
   refKey,
 } from "~/lib/sheetFormula";
 import {
   SHEET_MAX_ROWS,
   addRows,
   clearRange,
+  clonePage,
   deleteCol,
   deleteRow,
   fillRange,
@@ -30,6 +33,10 @@ import {
   rangeStats,
   rangeTsv,
   setAlign,
+  setColor,
+  setNumfmt,
+  sortRange,
+  toggleFrozen,
   toggleStyle,
   writeBlock,
   writeCell,
@@ -37,6 +44,8 @@ import {
   type GridRange,
   type SheetStyleKey,
 } from "~/lib/sheetGrid";
+import { paletteById, type PaletteEntry } from "~/lib/palette";
+import { ColorPalette } from "~/components/docsuite/ColorPalette";
 
 type SaveState = "saved" | "saving" | "error";
 
@@ -77,9 +86,16 @@ export function SheetEditor({ file }: SheetEditorProps) {
   const [renamingTab, setRenamingTab] = useState<string | null>(null);
   const [tabDraft, setTabDraft] = useState("");
   const [pendingDeleteTab, setPendingDeleteTab] = useState<SheetPage | null>(null);
+  /** 页签右键菜单（复制/重命名/删除） */
+  const [tabMenu, setTabMenu] = useState<{ x: number; y: number; pageId: string } | null>(null);
   const [saveState, setSaveState] = useState<SaveState>("saved");
-  const [resizing, setResizing] = useState<{ c: number; startX: number; startW: number } | null>(null);
+  /** 列宽/行高拖拽中（kind 区分轴向；直接落库不入撤销栈：快照过碎） */
+  const [resizing, setResizing] =
+    useState<{ kind: "col"; c: number; startX: number; startW: number } | { kind: "row"; r: number; startY: number; startH: number } | null>(null);
   const [fill, setFill] = useState<{ src: GridRange; dst: GridRange } | null>(null);
+  const [palette, setPalette] = useState<{ mode: "text" | "fill"; x: number; y: number } | null>(null);
+  /** 名称框输入态：null = 只读展示选区引用，聚焦后可输入 A1/B3:D5 回车跳转 */
+  const [nameBoxInput, setNameBoxInput] = useState<string | null>(null);
 
   const gridRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef(false);
@@ -492,12 +508,38 @@ export function SheetEditor({ file }: SheetEditorProps) {
     const current = page.cells[focusKey]?.s?.a;
     applyPages(pagesRef.current.map((p) => (p.id === page.id ? setAlign(p, range, current === a ? null : a) : p)));
   }
+  function applyNumfmt(f: "number" | "percent" | "currency" | null) {
+    applyPages(pagesRef.current.map((p) => (p.id === page.id ? setNumfmt(p, range, f) : p)));
+  }
+  /** 取色浮层回调：选中色板条目写入选区文字/背景色；null = 清除 */
+  function applyPalettePick(entry: PaletteEntry | null) {
+    const kind = palette?.mode === "text" ? "fg" : "bg";
+    const picked = palette;
+    setPalette(null);
+    if (!picked) return;
+    applyPages(pagesRef.current.map((p) => (p.id === page.id ? setColor(p, range, kind, entry ? entry.id : null) : p)));
+  }
+  function applySort(asc: boolean) {
+    const next = sortRange(page, range, { col: range.c1, asc });
+    if (!next) {
+      toast.error(t("sheetSortNeedRows"));
+      return;
+    }
+    applyPages(pagesRef.current.map((p) => (p.id === page.id ? next : p)));
+  }
+  /** 冻结窗格是视图设置而非数据编辑：不入撤销栈，直接落页签 */
+  function applyFrozen(kind: "row" | "col") {
+    setPages((prev) => prev.map((p) => (p.id === page.id ? toggleFrozen(p, kind) : p)));
+  }
   function clearStyle() {
     let next = toggleStyle(page, range, "b", false);
     next = toggleStyle(next, range, "i", false);
     next = toggleStyle(next, range, "u", false);
     next = toggleStyle(next, range, "s", false);
     next = setAlign(next, range, null);
+    next = setNumfmt(next, range, null);
+    next = setColor(next, range, "fg", null);
+    next = setColor(next, range, "bg", null);
     const settled = next;
     applyPages(pagesRef.current.map((p) => (p.id === page.id ? settled : p)));
   }
@@ -541,15 +583,23 @@ export function SheetEditor({ file }: SheetEditorProps) {
     setPendingDeleteTab(null);
   }
 
-  /* ----- 列宽拖拽（直接落库不入撤销栈：快照过碎） ----- */
+  /* ----- 列宽/行高拖拽（直接落库不入撤销栈：快照过碎） ----- */
   useEffect(() => {
     if (!resizing) return;
-    const onMove = (e: MouseEvent) => {
-      const w = Math.max(48, Math.min(400, Math.round(resizing.startW + e.clientX - resizing.startX)));
-      setPages((prev) =>
-        prev.map((p) => (p.id === page.id ? { ...p, colWidths: { ...p.colWidths, [String(resizing.c)]: w } } : p)),
-      );
-    };
+    const onMove =
+      resizing.kind === "col"
+        ? (e: MouseEvent) => {
+            const w = Math.max(48, Math.min(400, Math.round(resizing.startW + e.clientX - resizing.startX)));
+            setPages((prev) =>
+              prev.map((p) => (p.id === page.id ? { ...p, colWidths: { ...p.colWidths, [String(resizing.c)]: w } } : p)),
+            );
+          }
+        : (e: MouseEvent) => {
+            const h = Math.max(20, Math.min(200, Math.round(resizing.startH + e.clientY - resizing.startY)));
+            setPages((prev) =>
+              prev.map((p) => (p.id === page.id ? { ...p, rowHeights: { ...p.rowHeights, [String(resizing.r)]: h } } : p)),
+            );
+          };
     const onUp = () => setResizing(null);
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
@@ -558,6 +608,50 @@ export function SheetEditor({ file }: SheetEditorProps) {
       window.removeEventListener("mouseup", onUp);
     };
   }, [resizing, page.id]);
+
+  /* ----- 页签右键菜单：点击外部 / Esc / 滚动关闭 ----- */
+  useEffect(() => {
+    if (!tabMenu) return;
+    const close = () => setTabMenu(null);
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key === "Escape") setTabMenu(null);
+    };
+    window.addEventListener("mousedown", close);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", close, true);
+    return () => {
+      window.removeEventListener("mousedown", close);
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", close, true);
+    };
+  }, [tabMenu]);
+
+  /** 复制工作表：内容样式视图全量拷贝，插到原页签右侧并激活 */
+  function duplicateTab(targetId: string) {
+    setTabMenu(null);
+    const src = pagesRef.current.find((p) => p.id === targetId);
+    if (!src) return;
+    const copy = clonePage(src, `${src.name.slice(0, 44)}${t("sheetTabCopySuffix")}`);
+    const idx = pagesRef.current.findIndex((p) => p.id === targetId);
+    const next = [...pagesRef.current.slice(0, idx + 1), copy, ...pagesRef.current.slice(idx + 1)];
+    applyPages(next);
+    setActiveId(copy.id);
+    setSel({ anchor: { c: 0, r: 0 }, focus: { c: 0, r: 0 } });
+  }
+
+  /** 名称框回车跳转：支持 A1 与 A1:B3；非法输入直接还原展示 */
+  function commitNameBox() {
+    const raw = (nameBoxInput ?? "").trim().toUpperCase();
+    setNameBoxInput(null);
+    const parts = raw.split(":");
+    const a = parseRefKey(parts[0] ?? "");
+    const b = parts.length === 2 ? parseRefKey(parts[1]!) : a;
+    if (!a || !b) return;
+    const p1 = clampPos({ c: a.col, r: a.row });
+    const p2 = clampPos({ c: b.col, r: b.row });
+    setSel({ anchor: p1, focus: p2 });
+    gridRef.current?.focus();
+  }
 
   /* ----- 标题与导出 ----- */
   function commitTitle() {
@@ -586,6 +680,9 @@ export function SheetEditor({ file }: SheetEditorProps) {
       ? refKey(sel.focus.c, sel.focus.r)
       : `${refKey(range.c1, range.r1)}:${refKey(range.c2, range.r2)}`;
   const focusAlign = page.cells[focusKey]?.s?.a;
+  const focusNumfmt = page.cells[focusKey]?.s?.f ?? "";
+  const frozenRow = page.frozen === "row" || page.frozen === "both";
+  const frozenCol = page.frozen === "col" || page.frozen === "both";
 
   const menuItems: readonly (readonly [string, string])[] =
     menu?.target.kind === "row"
@@ -703,6 +800,79 @@ export function SheetEditor({ file }: SheetEditorProps) {
             <span className="sheet-glyph" data-align={a} aria-hidden />
           </button>
         ))}
+        <span className="sheet-toolbar__divider" aria-hidden />
+        {/* 数字格式（常规/数值/百分比/货币），按焦点格显示当前值 */}
+        <select
+          className="sheet-toolbar__select"
+          value={focusNumfmt}
+          onChange={(e) => applyNumfmt(e.target.value === "" ? null : (e.target.value as "number" | "percent" | "currency"))}
+          title={t("sheetNumfmt")}
+          aria-label={t("sheetNumfmt")}
+        >
+          <option value="">{t("sheetNumfmtGeneral")}</option>
+          <option value="number">{t("sheetNumfmtNumber")}</option>
+          <option value="percent">{t("sheetNumfmtPercent")}</option>
+          <option value="currency">{t("sheetNumfmtCurrency")}</option>
+        </select>
+        {(["text", "fill"] as const).map((mode) => (
+          <button
+            key={mode}
+            type="button"
+            className={`suite-toolbar__btn is-color${palette?.mode === mode ? " is-active" : ""}`}
+            title={mode === "text" ? t("suiteColorText") : t("suiteColorBg")}
+            aria-label={mode === "text" ? t("suiteColorText") : t("suiteColorBg")}
+            aria-pressed={palette?.mode === mode}
+            aria-haspopup="menu"
+            onClick={(e) => {
+              if (palette?.mode === mode) {
+                setPalette(null);
+                return;
+              }
+              const rect = e.currentTarget.getBoundingClientRect();
+              setPalette({ mode, x: rect.left, y: rect.bottom + 6 });
+            }}
+          >
+            <span className="doc-color-glyph" aria-hidden>
+              A<span className="doc-color-glyph__bar" data-mode={mode} />
+            </span>
+          </button>
+        ))}
+        <span className="sheet-toolbar__divider" aria-hidden />
+        {(
+          [
+            { asc: true, label: "A→Z", labelKey: "sheetSortAsc" },
+            { asc: false, label: "Z→A", labelKey: "sheetSortDesc" },
+          ] as const
+        ).map((it) => (
+          <button
+            key={it.label}
+            type="button"
+            className="suite-toolbar__btn"
+            title={t(it.labelKey)}
+            aria-label={t(it.labelKey)}
+            onClick={() => applySort(it.asc)}
+          >
+            {it.label}
+          </button>
+        ))}
+        {(
+          [
+            { kind: "row" as const, label: "☰", labelKey: "sheetFreezeRow" as const, on: frozenRow },
+            { kind: "col" as const, label: "▯", labelKey: "sheetFreezeCol" as const, on: frozenCol },
+          ]
+        ).map((it) => (
+          <button
+            key={it.kind}
+            type="button"
+            className={`suite-toolbar__btn${it.on ? " is-active" : ""}`}
+            title={t(it.labelKey)}
+            aria-label={t(it.labelKey)}
+            aria-pressed={it.on}
+            onClick={() => applyFrozen(it.kind)}
+          >
+            {it.label}
+          </button>
+        ))}
         <button
           type="button"
           className="suite-toolbar__btn"
@@ -714,11 +884,25 @@ export function SheetEditor({ file }: SheetEditorProps) {
         </button>
       </div>
 
-      {/* 名称框 + 公式栏：编辑中给 ✓/✗ 确认取消（飞书交互） */}
+      {/* 名称框（可输入 A1 / A1:B3 回车跳转）+ 公式栏：编辑中给 ✓/✗ 确认取消（飞书交互） */}
       <div className="sheet-bar">
-        <output className="sheet-bar__name" aria-label={t("sheetNameBoxLabel")}>
-          {nameBox}
-        </output>
+        <input
+          className="sheet-bar__name"
+          value={nameBoxInput ?? nameBox}
+          aria-label={t("sheetNameBoxLabel")}
+          title={t("sheetNameBoxJump")}
+          onFocus={() => setNameBoxInput(nameBox)}
+          onChange={(e) => setNameBoxInput(e.target.value)}
+          onBlur={() => setNameBoxInput(null)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              commitNameBox();
+            }
+            if (e.key === "Escape") setNameBoxInput(null);
+          }}
+          spellCheck={false}
+        />
         <span className="sheet-bar__fx" aria-hidden>
           fx
         </span>
@@ -826,7 +1010,7 @@ export function SheetEditor({ file }: SheetEditorProps) {
                     onMouseDown={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      setResizing({ c, startX: e.clientX, startW: page.colWidths[String(c)] ?? 100 });
+                      setResizing({ kind: "col", c, startX: e.clientX, startW: page.colWidths[String(c)] ?? 100 });
                     }}
                     onDoubleClick={(e) => {
                       // 双击列边界：清除该列自定义宽，回到默认
@@ -843,10 +1027,10 @@ export function SheetEditor({ file }: SheetEditorProps) {
               ))}
             </tr>
             {Array.from({ length: page.rows }, (_, r) => (
-              <tr key={r} aria-rowindex={r + 1}>
+              <tr key={r} aria-rowindex={r + 1} style={{ height: `${page.rowHeights[String(r)] ?? 28}px` }}>
                 <th
                   scope="row"
-                  className={`sheet-th sheet-th--row${r >= range.r1 && r <= range.r2 ? " is-head" : ""}`}
+                  className={`sheet-th sheet-th--row${r >= range.r1 && r <= range.r2 ? " is-head" : ""}${r === 0 && frozenRow ? " is-frozen-row" : ""}`}
                   onClick={() => {
                     gridRef.current?.focus();
                     setSel({ anchor: { c: 0, r }, focus: { c: page.cols - 1, r } });
@@ -854,6 +1038,26 @@ export function SheetEditor({ file }: SheetEditorProps) {
                   onContextMenu={(e) => openMenu(e, { kind: "row", r })}
                 >
                   {r + 1}
+                  {/* 行高拖拽把手：纯指针交互（双击复位），语义对读屏隐藏，行本身可经行头点击/菜单操作 */}
+                  <span
+                    className="sheet-resizer sheet-resizer--row"
+                    aria-hidden="true"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setResizing({ kind: "row", r, startY: e.clientY, startH: page.rowHeights[String(r)] ?? 28 });
+                    }}
+                    onDoubleClick={(e) => {
+                      // 双击行下边界：清除该行自定义高，回到默认
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setPages((prev) => {
+                        const heights = { ...page.rowHeights };
+                        delete heights[String(r)];
+                        return prev.map((p) => (p.id === page.id ? { ...p, rowHeights: heights } : p));
+                      });
+                    }}
+                  />
                 </th>
                 {Array.from({ length: page.cols }, (_, c) => renderCell(c, r))}
               </tr>
@@ -893,6 +1097,10 @@ export function SheetEditor({ file }: SheetEditorProps) {
                     onDoubleClick={() => {
                       setRenamingTab(p.id);
                       setTabDraft(p.name);
+                    }}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      setTabMenu({ x: e.clientX, y: e.clientY, pageId: p.id });
                     }}
                     title={t("sheetRenameTabHint")}
                     aria-label={t("sheetPageAria", { name: p.name })}
@@ -944,6 +1152,17 @@ export function SheetEditor({ file }: SheetEditorProps) {
         )}
       </div>
 
+      {/* 文字/背景取色浮层（工具栏触发），选中写入选区样式 */}
+      {palette && (
+        <ColorPalette
+          mode={palette.mode}
+          x={palette.x}
+          y={palette.y}
+          onPick={applyPalettePick}
+          onClose={() => setPalette(null)}
+        />
+      )}
+
       {menu && (
         <div
           className="sheet-menu"
@@ -960,6 +1179,49 @@ export function SheetEditor({ file }: SheetEditorProps) {
               {label}
             </button>
           ))}
+        </div>
+      )}
+
+      {/* 页签右键菜单：重命名 / 复制 / 删除（仅剩一页时删除禁用） */}
+      {tabMenu && (
+        <div
+          className="sheet-menu"
+          style={{
+            left: `${Math.min(tabMenu.x, window.innerWidth - 180)}px`,
+            top: `${Math.max(8, Math.min(tabMenu.y, window.innerHeight - 130))}px`,
+          }}
+          role="menu"
+          tabIndex={-1}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            className="sheet-menu__item"
+            role="menuitem"
+            onClick={() => {
+              setTabMenu(null);
+              setRenamingTab(tabMenu.pageId);
+              setTabDraft(pagesRef.current.find((p) => p.id === tabMenu.pageId)?.name ?? "");
+            }}
+          >
+            {t("sheetTabMenuRename")}
+          </button>
+          <button type="button" className="sheet-menu__item" role="menuitem" onClick={() => duplicateTab(tabMenu.pageId)}>
+            {t("sheetTabMenuCopy")}
+          </button>
+          <button
+            type="button"
+            className="sheet-menu__item is-danger"
+            role="menuitem"
+            disabled={pagesRef.current.length <= 1}
+            onClick={() => {
+              const target = pagesRef.current.find((p) => p.id === tabMenu.pageId) ?? null;
+              setTabMenu(null);
+              if (target) setPendingDeleteTab(target);
+            }}
+          >
+            {t("sheetTabMenuDelete")}
+          </button>
         </div>
       )}
 
@@ -1003,6 +1265,16 @@ export function SheetEditor({ file }: SheetEditorProps) {
     else if (cell?.s?.a === "right") cls.push("is-right");
     else if (typeof value === "number") cls.push("is-num"); // 数字默认右对齐（Excel 惯例）
     if (value !== undefined && isFormulaErrorCode(value)) cls.push("is-err");
+    // 冻结窗格：首行钉在表头下方、首列钉在行头右侧（角格双钉）
+    if (r === 0 && frozenRow) cls.push("is-frozen-row");
+    if (c === 0 && frozenCol) cls.push("is-frozen-col");
+    const fgEntry = paletteById(cell?.s?.fg);
+    const bgEntry = paletteById(cell?.s?.bg);
+    const style: React.CSSProperties = {
+      // 浅底背景上的文字固定恒定墨色（无显式文字色时），双主题下都可读
+      ...(bgEntry ? { background: bgEntry.value } : null),
+      ...(fgEntry ? { color: fgEntry.value } : bgEntry ? { color: "var(--color-doc-ink)" } : null),
+    };
     return (
       <td
         key={c}
@@ -1010,6 +1282,7 @@ export function SheetEditor({ file }: SheetEditorProps) {
         aria-selected={inRange}
         aria-colindex={c + 1}
         className={cls.join(" ")}
+        style={style}
         onMouseDown={(e) => cellMouseDown(e, c, r)}
         onMouseEnter={() => cellMouseEnter(c, r)}
         onDoubleClick={() => startEdit(cell?.v ?? "")}
@@ -1043,6 +1316,8 @@ export function SheetEditor({ file }: SheetEditorProps) {
           />
         ) : value === undefined ? (
           ""
+        ) : cell?.s?.f ? (
+          formatCellWithStyle(value, cell.s.f)
         ) : (
           formatCellValue(value)
         )}

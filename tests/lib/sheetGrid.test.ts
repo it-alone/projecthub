@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { evaluateSheet } from "~/lib/sheetFormula";
+import type { SheetPage } from "~/models/docSuite";
 import {
   SHEET_MAX_COLS,
   SHEET_MAX_ROWS,
   addRows,
   clearRange,
+  clonePage,
   deleteCol,
   fillRange,
   deleteRow,
@@ -16,7 +18,11 @@ import {
   parseClipboardTsv,
   rangeStats,
   rangeTsv,
+  setColor,
+  setNumfmt,
   setAlign,
+  sortRange,
+  toggleFrozen,
   toggleStyle,
   writeBlock,
   writeCell,
@@ -219,5 +225,107 @@ describe("fillRange：填充柄", () => {
     const display = evaluateSheet(p.cells);
     expect(display.get("B1")).toBe(10);
     expect(display.get("B2")).toBe(20);
+  });
+});
+
+describe("样式扩展：数字格式与颜色", () => {
+  const single = { c1: 0, r1: 0, c2: 0, r2: 0 };
+
+  it("setNumfmt / setColor 设置与清除", () => {
+    let p = writeCell(newPage("t"), { c: 0, r: 0 }, "12");
+    p = setNumfmt(p, single, "currency");
+    expect(p.cells.A1?.s?.f).toBe("currency");
+    p = setColor(p, single, "bg", "soft-blue");
+    expect(p.cells.A1?.s?.bg).toBe("soft-blue");
+    p = setColor(p, single, "fg", "red");
+    expect(p.cells.A1?.s?.fg).toBe("red");
+    p = setNumfmt(p, single, null);
+    expect(p.cells.A1?.s?.f).toBeUndefined();
+    p = setColor(p, single, "bg", null);
+    expect(p.cells.A1?.s?.bg).toBeUndefined();
+    expect(p.cells.A1?.s?.fg).toBe("red"); // 清背景不影响文字色
+  });
+
+  it("toggleFrozen：行/列独立开关组合", () => {
+    const p0 = newPage("t");
+    expect(toggleFrozen(p0, "row").frozen).toBe("row");
+    expect(toggleFrozen(toggleFrozen(p0, "row"), "col").frozen).toBe("both");
+    expect(toggleFrozen(toggleFrozen(toggleFrozen(p0, "row"), "col"), "row").frozen).toBe("col");
+    expect(toggleFrozen(toggleFrozen(toggleFrozen(toggleFrozen(p0, "row"), "col"), "row"), "col").frozen).toBe("none");
+  });
+});
+
+describe("sortRange：选区排序", () => {
+  const build = (): SheetPage => {
+    let p = newPage("t");
+    p = writeCell(p, { c: 0, r: 0 }, "香蕉");
+    p = writeCell(p, { c: 1, r: 0 }, "3");
+    p = writeCell(p, { c: 0, r: 1 }, "苹果");
+    p = writeCell(p, { c: 1, r: 1 }, "1");
+    p = writeCell(p, { c: 0, r: 2 }, "梨");
+    p = writeCell(p, { c: 1, r: 2 }, "2");
+    return p;
+  };
+  const range = { c1: 0, r1: 0, c2: 1, r2: 2 };
+
+  it("升序按首列文本排，同行值随行移动", () => {
+    const p = sortRange(build(), range, { col: 0, asc: true })!;
+    expect(p.cells.A1?.v).toBe("梨"); // 拼音序：li < ping < xiang
+    expect(p.cells.B1?.v).toBe("2");
+    expect(p.cells.A2?.v).toBe("苹果");
+    expect(p.cells.B2?.v).toBe("1");
+    expect(p.cells.A3?.v).toBe("香蕉");
+  });
+
+  it("空值行恒排最后（降序也不翻到最前）", () => {
+    let p = build();
+    p = writeCell(p, { c: 0, r: 1 }, ""); // 苹果行首列清空
+    const s = sortRange(p, range, { col: 0, asc: false })!;
+    expect(s.cells.A1?.v).toBe("香蕉"); // 降序：xiang > li
+    expect(s.cells.A2?.v).toBe("梨");
+    expect(s.cells.A3?.v ?? "").toBe(""); // 空行沉底
+  });
+
+  it("数字列按数值排序；单行选区返回 null", () => {
+    expect(sortRange(build(), { c1: 0, r1: 0, c2: 1, r2: 0 }, { col: 0, asc: true })).toBeNull();
+    let p = newPage("t2");
+    p = writeCell(p, { c: 0, r: 0 }, "10");
+    p = writeCell(p, { c: 0, r: 1 }, "9");
+    p = writeCell(p, { c: 0, r: 2 }, "2");
+    const s = sortRange(p, { c1: 0, r1: 0, c2: 0, r2: 2 }, { col: 0, asc: true })!;
+    expect(s.cells.A1?.v).toBe("2");
+    expect(s.cells.A2?.v).toBe("9");
+    expect(s.cells.A3?.v).toBe("10");
+  });
+});
+
+describe("行高列宽随行列增删平移 + 复制工作表", () => {
+  it("插入/删除行使 rowHeights 下标平移", () => {
+    let p = newPage("t");
+    p = { ...p, rowHeights: { "1": 60, "2": 40 } };
+    const inserted = insertRow(p, 1)!;
+    expect(inserted.rowHeights).toEqual({ "2": 60, "3": 40 });
+    const removed = deleteRow(inserted, 2);
+    expect(removed.rowHeights).toEqual({ "2": 40 });
+  });
+
+  it("插入/删除列使 colWidths 下标平移", () => {
+    let p = newPage("t");
+    p = { ...p, colWidths: { "0": 120, "2": 200 } };
+    const removed = deleteCol(p, 0);
+    expect(removed.colWidths).toEqual({ "1": 200 });
+    const inserted = insertCol(p, 0)!;
+    expect(inserted.colWidths).toEqual({ "1": 120, "3": 200 });
+  });
+
+  it("clonePage 换 id 换名，内容样式全量拷贝", () => {
+    let p = newPage("源");
+    p = writeCell(p, { c: 0, r: 0 }, "1");
+    p = setNumfmt(p, { c1: 0, r1: 0, c2: 0, r2: 0 }, "currency");
+    const copy = clonePage(p, "副本");
+    expect(copy.id).not.toBe(p.id);
+    expect(copy.name).toBe("副本");
+    expect(copy.cells.A1?.v).toBe("1");
+    expect(copy.cells.A1?.s?.f).toBe("currency");
   });
 });

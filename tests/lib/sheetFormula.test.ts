@@ -3,6 +3,7 @@ import {
   colToName,
   evalFormula,
   evaluateSheet,
+  formatCellWithStyle,
   formatCellValue,
   isFormulaErrorCode,
   parseNumberLiteral,
@@ -204,5 +205,139 @@ describe("formatCellValue：展示格式", () => {
     expect(formatCellValue("text")).toBe("text");
     expect(formatCellValue(true)).toBe("TRUE");
     expect(formatCellValue("#DIV/0!")).toBe("#DIV/0!");
+  });
+});
+
+describe("新函数：文本与数学", () => {
+  it("CONCAT / UPPER / LOWER / TRIM / LEN", () => {
+    expect(evalFormula('=CONCAT("a","b")', ctxOf({}))).toEqual({ ok: true, value: "ab" });
+    expect(evalFormula("=UPPER(A1)", ctxOf({ A1: "abc" }))).toEqual({ ok: true, value: "ABC" });
+    expect(evalFormula("=LOWER(A1)", ctxOf({ A1: "ABC" }))).toEqual({ ok: true, value: "abc" });
+    expect(evalFormula('=TRIM("  a   b  ")', ctxOf({}))).toEqual({ ok: true, value: "a b" });
+    expect(evalFormula("=LEN(A1)", ctxOf({ A1: "hello" }))).toEqual({ ok: true, value: 5 });
+  });
+
+  it("POWER / SQRT / MOD / INT / MEDIAN / PRODUCT", () => {
+    expect(evalFormula("=POWER(2,10)", ctxOf({}))).toEqual({ ok: true, value: 1024 });
+    expect(evalFormula("=SQRT(16)", ctxOf({}))).toEqual({ ok: true, value: 4 });
+    expect(evalFormula("=SQRT(-1)", ctxOf({}))).toEqual({ ok: false, code: "#VALUE!" });
+    expect(evalFormula("=MOD(7,3)", ctxOf({}))).toEqual({ ok: true, value: 1 });
+    expect(evalFormula("=MOD(-7,3)", ctxOf({}))).toEqual({ ok: true, value: 2 }); // 余数符号随除数
+    expect(evalFormula("=MOD(7,0)", ctxOf({}))).toEqual({ ok: false, code: "#DIV/0!" });
+    expect(evalFormula("=INT(-1.5)", ctxOf({}))).toEqual({ ok: true, value: -2 });
+    expect(evalFormula("=MEDIAN(1,2,3,4)", ctxOf({}))).toEqual({ ok: true, value: 2.5 });
+    expect(evalFormula("=PRODUCT(2,3,4)", ctxOf({}))).toEqual({ ok: true, value: 24 });
+  });
+});
+
+describe("新函数：IFERROR 与条件聚合", () => {
+  it("IFERROR 捕获错误回退、正常值直通", () => {
+    expect(evalFormula('=IFERROR(1/0,"空")', ctxOf({}))).toEqual({ ok: true, value: "空" });
+    expect(evalFormula("=IFERROR(10/2,0)", ctxOf({}))).toEqual({ ok: true, value: 5 });
+    // 回退值自身出错则错误继续传播
+    expect(evalFormula("=IFERROR(1/0,UNKNOWNFN())", ctxOf({}))).toEqual({ ok: false, code: "#NAME?" });
+  });
+
+  it("COUNTIF 支持比较符、裸值与文本", () => {
+    const ctx = ctxOf({ A1: "10", A2: "20", A3: "30" });
+    expect(evalFormula('=COUNTIF(A1:A3,">15")', ctx)).toEqual({ ok: true, value: 2 });
+    expect(evalFormula("=COUNTIF(A1:A3,20)", ctx)).toEqual({ ok: true, value: 1 });
+    expect(evalFormula('=COUNTIF(A1:A3,"<>10")', ctx)).toEqual({ ok: true, value: 2 });
+    const texts = ctxOf({ A1: "苹果", A2: "梨" });
+    expect(evalFormula('=COUNTIF(A1:A2,"苹果")', texts)).toEqual({ ok: true, value: 1 });
+  });
+
+  it("SUMIF 求和区平移对齐；省略时对条件区自身求和", () => {
+    const ctx = ctxOf({ A1: "苹果", B1: "10", A2: "香蕉", B2: "20", A3: "苹果", B3: "30" });
+    expect(evalFormula('=SUMIF(A1:A3,"苹果",B1:B3)', ctx)).toEqual({ ok: true, value: 40 });
+    const nums = ctxOf({ A1: "5", A2: "15" });
+    expect(evalFormula('=SUMIF(A1:A2,">10")', nums)).toEqual({ ok: true, value: 15 });
+  });
+
+  it("条件聚合首参不是区域时报 #VALUE!", () => {
+    expect(evalFormula("=COUNTIF(10,\">1\")", ctxOf({}))).toEqual({ ok: false, code: "#VALUE!" });
+  });
+});
+
+describe("formatCellWithStyle：数字格式", () => {
+  it("数值千分位去尾零 / 货币固定两位 / 百分比", () => {
+    expect(formatCellWithStyle(1234.5, "number")).toBe("1,234.5");
+    expect(formatCellWithStyle(1234.567, "number")).toBe("1,234.57");
+    expect(formatCellWithStyle(1234.5, "currency")).toBe("¥1,234.50");
+    expect(formatCellWithStyle(0.1234, "percent")).toBe("12.34%");
+    expect(formatCellWithStyle(-98765, "number")).toBe("-98,765");
+  });
+
+  it("非数字与错误码原样", () => {
+    expect(formatCellWithStyle("abc", "number")).toBe("abc");
+    expect(formatCellWithStyle("#DIV/0!", "percent")).toBe("#DIV/0!");
+  });
+});
+
+describe("查找与引用函数（第四期）", () => {
+  const fruit = ctxOf({ A1: "苹果", B1: "3", A2: "梨", B2: "1", A3: "香蕉", B3: "2" });
+
+  it("VLOOKUP 精确匹配（缺省即精确）与未找到 #N/A", () => {
+    expect(evalFormula('=VLOOKUP("梨", A1:B3, 2)', fruit)).toEqual({ ok: true, value: 1 });
+    expect(evalFormula('=VLOOKUP("梨", A1:B3, 2, FALSE)', fruit)).toEqual({ ok: true, value: 1 });
+    expect(evalFormula('=VLOOKUP("葡萄", A1:B3, 2)', fruit)).toEqual({ ok: false, code: "#N/A" });
+  });
+
+  it("VLOOKUP 近似匹配（升序假定）与列号越界", () => {
+    const nums = ctxOf({ A1: "10", A2: "20", A3: "30", B1: "a", B2: "b", B3: "c" });
+    expect(evalFormula("=VLOOKUP(25, A1:B3, 2, TRUE)", nums)).toEqual({ ok: true, value: "b" });
+    expect(evalFormula("=VLOOKUP(5, A1:B3, 2, TRUE)", nums)).toEqual({ ok: false, code: "#N/A" });
+    expect(evalFormula("=VLOOKUP(10, A1:B3, 3)", nums)).toEqual({ ok: false, code: "#REF!" });
+    expect(evalFormula("=VLOOKUP(10, A1:B3, 0)", nums)).toEqual({ ok: false, code: "#VALUE!" });
+  });
+
+  it("HLOOKUP 按首行查找", () => {
+    const wide = ctxOf({ A1: "名称", B1: "数量", A2: "苹果", B2: "5" });
+    expect(evalFormula('=HLOOKUP("数量", A1:B2, 2)', wide)).toEqual({ ok: true, value: 5 });
+    expect(evalFormula('=HLOOKUP("缺失", A1:B2, 2)', wide)).toEqual({ ok: false, code: "#N/A" });
+  });
+
+  it("AVERAGEIF / COUNTBLANK", () => {
+    expect(evalFormula('=AVERAGEIF(A1:A3, "<>", B1:B3)', fruit)).toEqual({ ok: true, value: 2 });
+    expect(evalFormula('=AVERAGEIF(A1:A3, "葡萄", B1:B3)', fruit)).toEqual({ ok: false, code: "#DIV/0!" });
+    const blanks = ctxOf({ A1: "1", A2: "", A3: "3" });
+    expect(evalFormula("=COUNTBLANK(A1:A5)", blanks)).toEqual({ ok: true, value: 3 }); // A2 空串 + A4/A5 未填
+  });
+});
+
+describe("文本与取整函数（第四期）", () => {
+  it("LEFT / RIGHT / MID 截取与越界", () => {
+    expect(evalFormula('=LEFT("飞书表格", 2)', ctxOf({}))).toEqual({ ok: true, value: "飞书" });
+    expect(evalFormula('=LEFT("abc")', ctxOf({}))).toEqual({ ok: true, value: "a" });
+    expect(evalFormula('=RIGHT("飞书表格", 2)', ctxOf({}))).toEqual({ ok: true, value: "表格" });
+    expect(evalFormula('=MID("ABCDEFG", 2, 3)', ctxOf({}))).toEqual({ ok: true, value: "BCD" });
+    expect(evalFormula('=MID("ABC", 0, 2)', ctxOf({}))).toEqual({ ok: false, code: "#VALUE!" });
+  });
+
+  it("SUBSTITUTE 全量与指定实例；FIND 区分大小写", () => {
+    expect(evalFormula('=SUBSTITUTE("a-b-c", "-", "+")', ctxOf({}))).toEqual({ ok: true, value: "a+b+c" });
+    expect(evalFormula('=SUBSTITUTE("a-b-c", "-", "+", 2)', ctxOf({}))).toEqual({ ok: true, value: "a-b+c" });
+    expect(evalFormula('=FIND("b", "abcabc", 4)', ctxOf({}))).toEqual({ ok: true, value: 5 });
+    expect(evalFormula('=FIND("B", "abc")', ctxOf({}))).toEqual({ ok: false, code: "#VALUE!" });
+  });
+
+  it("ROUNDUP/ROUNDDOWN 远离/趋近零；CEILING/FLOOR 按显著性", () => {
+    expect(evalFormula("=ROUNDUP(3.21, 1)", ctxOf({}))).toEqual({ ok: true, value: 3.3 });
+    expect(evalFormula("=ROUNDUP(-3.21, 1)", ctxOf({}))).toEqual({ ok: true, value: -3.3 });
+    expect(evalFormula("=ROUNDDOWN(3.99, 1)", ctxOf({}))).toEqual({ ok: true, value: 3.9 });
+    expect(evalFormula("=ROUNDDOWN(-3.99, 1)", ctxOf({}))).toEqual({ ok: true, value: -3.9 });
+    expect(evalFormula("=CEILING(7, 5)", ctxOf({}))).toEqual({ ok: true, value: 10 });
+    expect(evalFormula("=CEILING(4.3)", ctxOf({}))).toEqual({ ok: true, value: 5 });
+    expect(evalFormula("=CEILING(4.3, 0)", ctxOf({}))).toEqual({ ok: true, value: 0 });
+    expect(evalFormula("=FLOOR(7, 5)", ctxOf({}))).toEqual({ ok: true, value: 5 });
+    expect(evalFormula("=FLOOR(4.7)", ctxOf({}))).toEqual({ ok: true, value: 4 });
+    expect(evalFormula("=FLOOR(4.7, 0)", ctxOf({}))).toEqual({ ok: false, code: "#DIV/0!" });
+  });
+
+  it("TODAY/NOW 输出本地时间格式", () => {
+    const today = evalFormula("=TODAY()", ctxOf({}));
+    const now = evalFormula("=NOW()", ctxOf({}));
+    expect(today.ok && typeof today.value === "string" ? today.value : "").toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(now.ok && typeof now.value === "string" ? now.value : "").toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
   });
 });

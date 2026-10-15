@@ -87,14 +87,37 @@ export function toggleStyle(page: SheetPage, range: GridRange, key: SheetStyleKe
 
 /** 选区统一设置对齐；null = 恢复默认（删键） */
 export function setAlign(page: SheetPage, range: GridRange, a: SheetCellStyle["a"] | null): SheetPage {
+  return withStyle(page, range, (style) => {
+    if (a === null) delete style.a;
+    else style.a = a;
+  });
+}
+
+/** 选区统一设置数字格式；null = 常规 */
+export function setNumfmt(page: SheetPage, range: GridRange, f: SheetCellStyle["f"] | null): SheetPage {
+  return withStyle(page, range, (style) => {
+    if (f === null) delete style.f;
+    else style.f = f;
+  });
+}
+
+/** 选区统一设置文字/背景色（存色板 id）；null = 清除该颜色 */
+export function setColor(page: SheetPage, range: GridRange, kind: "fg" | "bg", id: string | null): SheetPage {
+  return withStyle(page, range, (style) => {
+    if (id === null) delete style[kind];
+    else style[kind] = id;
+  });
+}
+
+/** 选区内逐格改样式键（空文本且无样式的格子维持原稀疏策略） */
+function withStyle(page: SheetPage, range: GridRange, mutate: (style: SheetCellStyle) => void): SheetPage {
   const cells = { ...page.cells };
   for (let r = range.r1; r <= range.r2; r++) {
     for (let c = range.c1; c <= range.c2; c++) {
       const k = refKey(c, r);
       const prev: SheetCell = cells[k] ?? { v: "" };
       const style: SheetCellStyle = { ...prev.s };
-      if (a === null) delete style.a;
-      else style.a = a;
+      mutate(style);
       const next = { ...prev, s: style };
       if (next.v === "" && !next.s) delete cells[k];
       else cells[k] = next;
@@ -143,7 +166,7 @@ export function insertRow(page: SheetPage, at: number): SheetPage | null {
   if (page.rows >= SHEET_MAX_ROWS) return null;
   const cells = mapCells(page.cells, (p) => (p.row >= at ? { col: p.col, row: p.row + 1 } : p));
   mapFormulas(cells, "row", (n) => (n >= at ? n + 1 : n));
-  return { ...page, rows: page.rows + 1, cells };
+  return { ...page, rows: page.rows + 1, cells, rowHeights: shiftSizeMap(page.rowHeights, at, 1) };
 }
 
 /** 删除 at 行：引用 at 行的公式改指补位行（Excel 会变 #REF!，这里保持可用性优先） */
@@ -153,7 +176,7 @@ export function deleteRow(page: SheetPage, at: number): SheetPage {
     return p.row > at ? { col: p.col, row: p.row - 1 } : p;
   });
   mapFormulas(cells, "row", (n) => (n > at ? n - 1 : n));
-  return { ...page, rows: Math.max(1, page.rows - 1), cells };
+  return { ...page, rows: Math.max(1, page.rows - 1), cells, rowHeights: shiftSizeMap(page.rowHeights, at, -1) };
 }
 
 /** 在 at 列之前插入一列；已达列数上限返回 null */
@@ -161,7 +184,7 @@ export function insertCol(page: SheetPage, at: number): SheetPage | null {
   if (page.cols >= SHEET_MAX_COLS) return null;
   const cells = mapCells(page.cells, (p) => (p.col >= at ? { col: p.col + 1, row: p.row } : p));
   mapFormulas(cells, "col", (n) => (n >= at ? n + 1 : n));
-  return { ...page, cols: page.cols + 1, cells };
+  return { ...page, cols: page.cols + 1, cells, colWidths: shiftSizeMap(page.colWidths, at, 1) };
 }
 
 export function deleteCol(page: SheetPage, at: number): SheetPage {
@@ -170,12 +193,89 @@ export function deleteCol(page: SheetPage, at: number): SheetPage {
     return p.col > at ? { col: p.col - 1, row: p.row } : p;
   });
   mapFormulas(cells, "col", (n) => (n > at ? n - 1 : n));
-  return { ...page, cols: Math.max(1, page.cols - 1), cells };
+  return { ...page, cols: Math.max(1, page.cols - 1), cells, colWidths: shiftSizeMap(page.colWidths, at, -1) };
+}
+
+/** 行列覆盖表（列宽/行高）随增删平移：插入时 ≥at 的下标 +1；删除时 at 位移除、>at 的 -1 */
+function shiftSizeMap(map: Record<string, number>, at: number, delta: 1 | -1): Record<string, number> {
+  if (!Object.keys(map).length) return map;
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(map)) {
+    const i = Number(k);
+    if (delta === 1) out[String(i >= at ? i + 1 : i)] = v;
+    else if (i !== at) out[String(i > at ? i - 1 : i)] = v;
+  }
+  return out;
+}
+
+/** 复制工作表：内容/样式/视图设置全量拷贝，仅换 id 与名称（本库全量不可变更新，浅拷贝安全） */
+export function clonePage(page: SheetPage, name: string): SheetPage {
+  return sheetPageSchema.parse({ ...page, id: uuid(), name });
 }
 
 /** 追加 n 行（封顶），用于焦点触底自动扩行与粘贴扩容 */
 export function addRows(page: SheetPage, n: number): SheetPage {
   return { ...page, rows: Math.min(SHEET_MAX_ROWS, page.rows + n) };
+}
+
+/** 切换冻结窗格（首行/首列独立开关，组合出 none/row/col/both） */
+export function toggleFrozen(page: SheetPage, kind: "row" | "col"): SheetPage {
+  const hasRow = page.frozen === "row" || page.frozen === "both";
+  const hasCol = page.frozen === "col" || page.frozen === "both";
+  const row = kind === "row" ? !hasRow : hasRow;
+  const col = kind === "col" ? !hasCol : hasCol;
+  const frozen = row && col ? "both" : row ? "row" : col ? "col" : "none";
+  return { ...page, frozen };
+}
+
+/**
+ * 选区排序：以 by 列的显示值为键重排选区内各行（单元格对象整体随行移动，
+ * 公式引用按位置语义不变——与 Excel 一致）。数字与数字比数值，其余按文本忽略
+ * 大小写字典序；空格恒排最后。稳定排序保持同键原相对顺序；不足两行返回 null。
+ */
+export function sortRange(
+  page: SheetPage,
+  range: GridRange,
+  by: { col: number; asc: boolean },
+): SheetPage | null {
+  const rowCount = range.r2 - range.r1 + 1;
+  if (rowCount < 2) return null;
+  const display = evaluateSheet(page.cells);
+  const keyOf = (r: number): number | string | null => {
+    const v = display.get(refKey(by.col, r));
+    if (v === undefined) return null;
+    if (typeof v === "number") return v;
+    return formatCellValue(v).toLowerCase();
+  };
+  const order = Array.from({ length: rowCount }, (_, i) => range.r1 + i);
+  order.sort((ra, rb) => {
+    const a = keyOf(ra);
+    const b = keyOf(rb);
+    if (a === null && b === null) return 0;
+    if (a === null) return 1; // 空格恒排最后，不随升降序翻转（Excel 观感）
+    if (b === null) return -1;
+    let cmp: number;
+    if (typeof a === "number" && typeof b === "number") cmp = a - b;
+    // 文本按中文区域排序（拼音序），与飞书/Excel 观感一致
+    else cmp = String(a).localeCompare(String(b), "zh");
+    return by.asc ? cmp : -cmp;
+  });
+  // 取出选区矩形内的格子快照，再按排序后的行号重新铺回
+  const grid: (SheetCell | undefined)[][] = [];
+  for (let i = 0; i < rowCount; i++) {
+    grid.push([]);
+    for (let c = range.c1; c <= range.c2; c++) grid[i]!.push(page.cells[refKey(c, range.r1 + i)]);
+  }
+  const cells = { ...page.cells };
+  order.forEach((srcRow, dstIdx) => {
+    for (let c = range.c1; c <= range.c2; c++) {
+      const cell = grid[srcRow - range.r1]![c - range.c1]!;
+      const key = refKey(c, range.r1 + dstIdx);
+      if (cell) cells[key] = cell;
+      else delete cells[key];
+    }
+  });
+  return { ...page, cells };
 }
 
 /**

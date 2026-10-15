@@ -6751,6 +6751,204 @@ select.input {
   background: var(--color-surface-muted);
 }
 
+/* ---------- 文档增强：表格工具条 / 取色按钮与浮层 ---------- */
+.doc-table-bar {
+  position: fixed;
+  z-index: 80;
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-lg);
+  transform: translateX(-50%);
+}
+
+.doc-table-bar__btn {
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.doc-table-bar__btn:hover {
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+}
+
+.doc-table-bar__btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+/* 颜色按钮字形：A 字 + 底部色条（文字色实条 / 背景色用浅条纹理区分） */
+.doc-color-glyph {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.doc-color-glyph__bar {
+  width: 14px;
+  height: 3px;
+  margin-top: 2px;
+  border-radius: 1px;
+  background: var(--color-primary);
+}
+
+.doc-color-glyph__bar[data-mode="fill"] {
+  background: var(--color-warning);
+}
+
+/* 浮动栏字号下拉：跟随工具栏按钮尺寸（mousedown 冒泡已截断以放行原生下拉） */
+.doc-float-bar__size {
+  height: 26px;
+  margin: 0 2px;
+  padding: 0 2px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  font-size: 12px;
+  color: var(--color-text);
+}
+
+/* 对齐字形（与表格工具栏同款两短杠：满杠 + 65% 短杠按方位收边） */
+.doc-align-glyph {
+  display: block;
+  width: 14px;
+}
+
+.doc-align-glyph::before,
+.doc-align-glyph::after {
+  content: "";
+  display: block;
+  height: 2px;
+  margin-top: 2px;
+  border-radius: 1px;
+  background: currentcolor;
+}
+
+.doc-align-glyph::before {
+  margin-top: 0;
+  width: 100%;
+}
+
+.doc-align-glyph[data-align="left"]::after {
+  width: 65%;
+}
+
+.doc-align-glyph[data-align="center"]::after {
+  width: 65%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.doc-align-glyph[data-align="right"]::after {
+  width: 65%;
+  margin-left: auto;
+}
+
+/* 链接编辑浮层：贴浮动栏下方（Enter 应用 / Esc 取消） */
+.doc-link-pop {
+  position: fixed;
+  z-index: 90;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 4px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.doc-link-pop__input {
+  width: 240px;
+  height: 28px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  font-size: 13px;
+  color: var(--color-text);
+}
+
+.doc-link-pop__input:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+.doc-link-pop__btn {
+  height: 28px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary);
+  font-size: 12px;
+  color: var(--color-primary-contrast);
+  cursor: pointer;
+}
+
+.doc-link-pop__btn.is-danger {
+  background: var(--color-surface-muted);
+  color: var(--color-danger);
+}
+
+.color-palette {
+  position: fixed;
+  z-index: 90;
+  display: grid;
+  grid-template-columns: repeat(3, 26px);
+  gap: 6px;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.color-palette__swatch {
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.color-palette__swatch:hover {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+.color-palette__swatch:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+.color-palette__none {
+  grid-column: 1 / -1;
+  padding: var(--space-1) var(--space-2);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: none;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.color-palette__none:hover {
+  color: var(--color-text);
+}
+
 /* ---------- 飞书式文档：纸张排版 ---------- */
 .suite-doc__scroll {
   flex: 1;
@@ -6759,15 +6957,84 @@ select.input {
   padding: var(--space-4) var(--space-4) 30vh;
 }
 
+/* 画布 + 大纲侧栏：宽屏并排（窄屏收起大纲，保证画布宽度） */
+.suite-doc__layout {
+  display: flex;
+  gap: var(--space-4);
+  align-items: flex-start;
+  justify-content: center;
+}
+
 .suite-doc__paper {
   position: relative;
-  max-width: 780px;
+  flex: 0 1 780px;
   min-height: 60vh;
   margin: 0 auto;
   padding: 40px 48px 64px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
+}
+
+.doc-outline {
+  position: sticky;
+  top: 0;
+  flex: 0 0 190px;
+  padding: var(--space-3) 0;
+}
+
+.doc-outline__title {
+  margin: 0 0 var(--space-2);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.doc-outline__empty {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-text-faint);
+}
+
+.doc-outline__item {
+  display: block;
+  max-width: 100%;
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.doc-outline__item:hover {
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+}
+
+.doc-outline__item:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+.doc-outline__item.is-h2 {
+  padding-left: calc(var(--space-2) + var(--space-2));
+}
+
+.doc-outline__item.is-h3 {
+  padding-left: calc(var(--space-2) + var(--space-4));
+  font-size: 12px;
+}
+
+@media (width <= 1180px) {
+  .doc-outline {
+    display: none;
+  }
 }
 
 .suite-doc__placeholder {
@@ -6867,6 +7134,78 @@ select.input {
   color: var(--color-text);
 }
 
+/* 背景色标记上的文字用恒定墨色：浅底 + 主题浅字在暗色主题下不可读 */
+.suite-doc__prose .ProseMirror span[style*="background-color"] {
+  color: var(--color-doc-ink);
+  padding: 0 2px;
+  border-radius: 3px;
+}
+
+/* 待办列表：去项目符号，勾选框与文字基线对齐，完成后划线弱化 */
+.suite-doc__prose .ProseMirror ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 2px;
+}
+
+.suite-doc__prose .ProseMirror ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+.suite-doc__prose .ProseMirror ul[data-type="taskList"] li > label {
+  margin-top: 5px;
+  user-select: none;
+}
+
+.suite-doc__prose .ProseMirror ul[data-type="taskList"] li > div {
+  flex: 1;
+}
+
+.suite-doc__prose .ProseMirror ul[data-type="taskList"] input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+.suite-doc__prose .ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+}
+
+/* 文档内表格块：全边框 + 表头底色 + 选中单元格高亮（tiptap 表格扩展） */
+.suite-doc__prose .ProseMirror table {
+  width: 100%;
+  margin: var(--space-3) 0;
+  border-collapse: collapse;
+  table-layout: fixed;
+  overflow: hidden;
+}
+
+.suite-doc__prose .ProseMirror th,
+.suite-doc__prose .ProseMirror td {
+  position: relative; /* 选中单元格的高亮伪元素以格为基准 */
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  font-size: 14px;
+  vertical-align: top;
+}
+
+.suite-doc__prose .ProseMirror th {
+  background: var(--color-surface-muted);
+  font-weight: 600;
+  text-align: left;
+}
+
+.suite-doc__prose .ProseMirror .selectedCell::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: var(--color-primary-soft);
+  pointer-events: none;
+}
+
 /* ---------- 斜杠菜单（/ 触发的块插入浮层） ---------- */
 .slash-menu {
   position: fixed;
@@ -6932,15 +7271,20 @@ select.input {
   flex: none;
   min-width: 76px;
   height: 28px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   padding: 0 var(--space-2);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
+  background: var(--color-surface);
   font-family: var(--font-mono);
   font-size: 12px;
   color: var(--color-text-secondary);
+  text-align: center;
+}
+
+/* 名称框从只读 output 换成可输入跳转的 input：补焦点环与占位基线 */
+.sheet-bar__name:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -1px;
 }
 
 .sheet-bar__fx {
@@ -7087,6 +7431,48 @@ select.input {
   z-index: 2;
 }
 
+/* 冻结窗格：首行钉在表头下方（表头高 28px）、首列钉在行头右侧（行头宽 44px）；
+   z 序须盖过滚动中的普通格与行头，角格最高 */
+.sheet-td.is-frozen-row,
+.sheet-th--row.is-frozen-row {
+  position: sticky;
+  top: 28px;
+  z-index: 3;
+  background: var(--color-surface);
+}
+
+.sheet-td.is-frozen-col {
+  position: sticky;
+  left: 44px;
+  z-index: 3;
+  background: var(--color-surface);
+}
+
+.sheet-td.is-frozen-row.is-frozen-col {
+  z-index: 5;
+}
+
+.sheet-th--row.is-frozen-row {
+  left: 0;
+  z-index: 4;
+}
+
+.sheet-toolbar__select {
+  height: 26px;
+  padding: 0 var(--space-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  font-size: 12px;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.sheet-toolbar__select:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
 .sheet-corner {
   position: sticky;
   left: 0;
@@ -7120,6 +7506,14 @@ select.input {
 .sheet-resizer:hover {
   background: var(--color-primary);
   opacity: 0.6;
+}
+
+/* 行高把手：行头下缘横向拖拽（列把手是右缘竖向） */
+.sheet-resizer--row {
+  inset: auto 0 -3px;
+  width: auto;
+  height: 6px;
+  cursor: row-resize;
 }
 
 .sheet-td {
@@ -7264,6 +7658,16 @@ select.input {
 
 .sheet-menu__item:hover {
   background: var(--color-surface-muted);
+}
+
+.sheet-menu__item.is-danger {
+  color: var(--color-danger);
+}
+
+.sheet-menu__item:disabled {
+  color: var(--color-text-tertiary);
+  cursor: not-allowed;
+  background: none;
 }
 
 /* ---------- 在线表格：页签与状态栏 ---------- */

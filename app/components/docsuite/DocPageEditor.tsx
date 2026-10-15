@@ -1,7 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "@remix-run/react";
-import { EditorContent, Mark, useEditor } from "@tiptap/react";
+import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import Highlight from "@tiptap/extension-highlight";
+import Link from "@tiptap/extension-link";
+import TextAlign from "@tiptap/extension-text-align";
+import { TaskItem } from "@tiptap/extension-list/task-item";
+import { TaskList } from "@tiptap/extension-list/task-list";
+import { TableKit } from "@tiptap/extension-table";
+import { BackgroundColor, Color, FontSize, TextStyle } from "@tiptap/extension-text-style";
 import { TextSelection } from "@tiptap/pm/state";
 import type { JSONContent } from "@tiptap/react";
 import { docFileService } from "~/services/docFile.service";
@@ -11,24 +18,24 @@ import { useI18n } from "~/lib/i18n";
 import { Icon } from "~/components/ui/Icon";
 import { useToast } from "~/components/ui/Toast";
 import { SlashMenu } from "~/components/docsuite/SlashMenu";
+import { ColorPalette } from "~/components/docsuite/ColorPalette";
 import { createSlashMenuExtension, type SlashItem, type SlashMenuState } from "~/components/docsuite/slashExtension";
 import type { DocFile } from "~/models/docSuite";
 
 type SaveState = "saved" | "saving" | "error";
 type Anchor2D = { x: number; y: number };
-
-/** 高亮 mark：StarterKit 未包含，用 mark 标签承载，样式走全局 .suite-doc mark */
-const Highlight = Mark.create({
-  name: "highlight",
-  parseHTML() {
-    return [{ tag: "mark" }];
-  },
-  renderHTML() {
-    return ["mark", { class: "suite-hl" }, 0];
-  },
-});
+/** 取色浮层模式：text 文字色 / fill 背景色 / highlight 高亮笔 */
+type PaletteMode = "text" | "fill" | "highlight";
+interface OutlineItem {
+  level: number;
+  text: string;
+  pos: number;
+}
 
 const CLOSED_SLASH: SlashMenuState = { open: false, x: 0, y: 0, query: "", items: [], activeIndex: 0, select: () => {} };
+
+/** 字号候选（px；空 = 默认字号） */
+const FONT_SIZES = ["", "12px", "14px", "16px", "18px", "24px", "32px", "48px"] as const;
 
 export interface DocPageEditorProps {
   file: DocFile;
@@ -51,6 +58,12 @@ export function DocPageEditor({ file }: DocPageEditorProps) {
   const [floatBar, setFloatBar] = useState<Anchor2D | null>(null);
   const [blockHandle, setBlockHandle] = useState<(Anchor2D & { start: number }) | null>(null);
   const [blockMenu, setBlockMenu] = useState<(Anchor2D & { start: number }) | null>(null);
+  const [palette, setPalette] = useState<{ mode: PaletteMode; x: number; y: number } | null>(null);
+  const [tableBar, setTableBar] = useState<Anchor2D | null>(null);
+  const [outline, setOutline] = useState<OutlineItem[]>([]);
+  // 链接编辑浮层：initial 是已有 href（光标在链接内时），apply 时回写
+  const [linkEdit, setLinkEdit] = useState<(Anchor2D & { initial: string }) | null>(null);
+  const [linkDraft, setLinkDraft] = useState("");
 
   const initialContent = (file.content ?? { type: "doc", content: [] }) as JSONContent;
   const itemsRef = useRef<SlashItem[]>([]);
@@ -62,9 +75,44 @@ export function DocPageEditor({ file }: DocPageEditorProps) {
   const editor = useEditor({
     // Remix SSR：延后渲染编辑器实例，避免 hydration 不一致
     immediatelyRender: false,
-    extensions: [StarterKit, Highlight, createSlashMenuExtension({ getItems: () => itemsRef.current, onState: setSlash })],
+    extensions: [
+      StarterKit,
+      // 高亮笔多色：色值来自 ~/lib/palette 高亮色板，attrs.color 随文档持久化
+      Highlight.configure({ multicolor: true }),
+      // 链接：编辑器内不直接点开（避免误触跳走），Ctrl/⌘+K 或浮动栏编辑
+      Link.configure({ openOnClick: false, autolink: true, defaultProtocol: "https" }),
+      // 段落/标题对齐（正文排版三态）
+      TextAlign.configure({ types: ["heading", "paragraph"] }),
+      // 飞书式待办清单：勾选框可点，nested 允许清单嵌套
+      TaskList,
+      TaskItem.configure({ nested: true }),
+      // 文档内表格块（列宽不开放拖拽，保持简单）
+      TableKit.configure({ table: { resizable: false } }),
+      // 文字/背景色/字号（span 内联样式，色值来自 ~/lib/palette 数据色板）
+      TextStyle,
+      Color,
+      BackgroundColor,
+      FontSize,
+      createSlashMenuExtension({ getItems: () => itemsRef.current, onState: setSlash }),
+    ],
     content: initialContent,
     autofocus: false,
+    editorProps: {
+      handleKeyDown: (view, event) => {
+        // Ctrl/⌘+K 唤起链接编辑（业界惯例快捷键）
+        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+          const { from } = view.state.selection;
+          try {
+            const coords = view.coordsAtPos(from);
+            openLinkEditorAt((coords.left + coords.right) / 2, coords.top - 44);
+          } catch {
+            openLinkEditorAt(window.innerWidth / 2, 120);
+          }
+          return true;
+        }
+        return false;
+      },
+    },
     onUpdate: ({ editor: ed }) => scheduleSave(ed),
     onTransaction: () => setTick((n) => n + 1),
   });
@@ -100,7 +148,7 @@ export function DocPageEditor({ file }: DocPageEditorProps) {
     };
   }, [file.id]);
 
-  /* ----- 划选浮动工具栏：非空选区出现在选区上方，滚动/失焦时跟随或隐藏 ----- */
+  /* ----- 划选浮动工具栏 + 表格工具条：选区/事务/滚动时测量，失焦隐藏 ----- */
   useEffect(() => {
     if (!editor) return;
     const measure = (): void => {
@@ -108,29 +156,83 @@ export function DocPageEditor({ file }: DocPageEditorProps) {
       const { from, to, empty } = state.selection;
       if (empty || !editor.isFocused || editor.isActive("codeBlock")) {
         setFloatBar(null);
+      } else {
+        try {
+          const a = view.coordsAtPos(from);
+          const b = view.coordsAtPos(to);
+          const x = (a.left + b.left) / 2;
+          const y = Math.min(a.top, b.top) - 46;
+          const xClamped = Math.max(140, Math.min(x, window.innerWidth - 140));
+          setFloatBar((prev) =>
+            prev && Math.abs(prev.x - xClamped) < 1 && Math.abs(prev.y - y) < 1 ? prev : { x: xClamped, y: Math.max(60, y) },
+          );
+        } catch {
+          setFloatBar(null); // 坐标测量失败（节点刚卸载等）宁可隐藏也不闪错位置
+        }
+      }
+      // 光标落在表格内 → 表格工具条贴表格顶缘居中
+      if (!editor.isActive("table")) {
+        setTableBar(null);
         return;
       }
       try {
-        const a = view.coordsAtPos(from);
-        const b = view.coordsAtPos(to);
-        const x = (a.left + b.left) / 2;
-        const y = Math.min(a.top, b.top) - 46;
-        const xClamped = Math.max(140, Math.min(x, window.innerWidth - 140));
-        setFloatBar((prev) =>
-          prev && Math.abs(prev.x - xClamped) < 1 && Math.abs(prev.y - y) < 1 ? prev : { x: xClamped, y: Math.max(60, y) },
-        );
+        const $from = state.selection.$from;
+        let depth = $from.depth;
+        while (depth > 0 && $from.node(depth).type.name !== "table") depth--;
+        if (depth < 1) {
+          setTableBar(null);
+          return;
+        }
+        const dom = view.nodeDOM($from.before(depth));
+        if (dom instanceof HTMLElement) {
+          const rect = dom.getBoundingClientRect();
+          const next = { x: rect.left + rect.width / 2, y: Math.max(52, rect.top - 42) };
+          setTableBar((prev) =>
+            prev && Math.abs(prev.x - next.x) < 1 && Math.abs(prev.y - next.y) < 1 ? prev : next,
+          );
+        }
       } catch {
-        setFloatBar(null); // 坐标测量失败（节点刚卸载等）宁可隐藏也不闪错位置
+        setTableBar(null);
       }
     };
     editor.on("selectionUpdate", measure);
     editor.on("transaction", measure);
-    editor.on("blur", () => setFloatBar(null));
+    editor.on("blur", () => {
+      setFloatBar(null);
+      setTableBar(null);
+    });
     window.addEventListener("scroll", measure, true);
     return () => {
       editor.off("selectionUpdate", measure);
       editor.off("transaction", measure);
       window.removeEventListener("scroll", measure, true);
+    };
+  }, [editor]);
+
+  /* ----- 大纲：顶层标题收集（点击跳转定位），事务时增量刷新 ----- */
+  useEffect(() => {
+    if (!editor) return;
+    const collect = (): void => {
+      const items: OutlineItem[] = [];
+      editor.state.doc.forEach((node, offset) => {
+        if (node.type.name === "heading") {
+          items.push({ level: Number(node.attrs.level ?? 1), text: node.textContent.trim(), pos: offset });
+        }
+      });
+      setOutline((prev) => {
+        if (prev.length !== items.length) return items;
+        for (let i = 0; i < items.length; i++) {
+          if (prev[i]!.pos !== items[i]!.pos || prev[i]!.text !== items[i]!.text || prev[i]!.level !== items[i]!.level) {
+            return items;
+          }
+        }
+        return prev; // 内容没变不重设引用，避免无谓渲染
+      });
+    };
+    editor.on("transaction", collect);
+    collect();
+    return () => {
+      editor.off("transaction", collect);
     };
   }, [editor]);
 
@@ -222,6 +324,75 @@ export function DocPageEditor({ file }: DocPageEditorProps) {
     setBlockMenu(null);
   }
 
+  /** 表格工具条动作（tiptap 原生命令，自动进撤销历史） */
+  function runTableCmd(cmd: "addRowAfter" | "addColumnAfter" | "deleteRow" | "deleteColumn" | "deleteTable") {
+    editor?.chain().focus()[cmd]().run();
+  }
+
+  /** 取色浮层回调：选中色板条目写入对应 mark；null = 清除颜色 */
+  function pickColor(entry: { value: string } | null) {
+    const mode = palette?.mode;
+    setPalette(null);
+    const chain = editor?.chain().focus();
+    if (!chain || !mode) return;
+    if (mode === "text") {
+      if (entry) chain.setColor(entry.value).run();
+      else chain.unsetColor().run();
+    } else if (mode === "highlight") {
+      if (entry) chain.setHighlight({ color: entry.value }).run();
+      else chain.unsetHighlight().run();
+    } else {
+      if (entry) chain.setBackgroundColor(entry.value).run();
+      else chain.unsetBackgroundColor().run();
+    }
+  }
+
+  /** 打开链接编辑浮层：带出光标所在链接的 href（无则空） */
+  function openLinkEditorAt(x: number, y: number) {
+    const current = (editor?.getAttributes("link").href as string | undefined) ?? "";
+    setLinkDraft(current);
+    setLinkEdit({ x: Math.max(140, Math.min(x, window.innerWidth - 140)), y: Math.max(60, y), initial: current });
+  }
+
+  /** 应用链接：无协议的裸域名补 https://；空输入按移除处理 */
+  function applyLink() {
+    const raw = linkDraft.trim();
+    const href = !raw ? "" : /^[a-z][a-z0-9+.-]*:/i.test(raw) ? raw : `https://${raw}`;
+    const chain = editor?.chain().focus().extendMarkRange("link");
+    if (!chain) return;
+    if (href) chain.setLink({ href }).run();
+    else chain.unsetLink().run();
+    setLinkEdit(null);
+  }
+
+  /** 移除链接（保留文字） */
+  function removeLink() {
+    editor?.chain().focus().extendMarkRange("link").unsetLink().run();
+    setLinkEdit(null);
+  }
+
+  /* ----- 链接浮层：点击外部 / Esc / 滚动关闭（自身 mousedown 已阻止冒泡） ----- */
+  useEffect(() => {
+    if (!linkEdit) return;
+    const close = () => setLinkEdit(null);
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key === "Escape") setLinkEdit(null);
+    };
+    window.addEventListener("mousedown", close);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", close, true);
+    return () => {
+      window.removeEventListener("mousedown", close);
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", close, true);
+    };
+  }, [linkEdit]);
+
+  /** 大纲跳转：光标落到标题块内并滚动进视区 */
+  function jumpToHeading(pos: number) {
+    editor?.chain().focus().setTextSelection(pos + 1).scrollIntoView().run();
+  }
+
   /** 标题提交：Enter/失焦触发；空名回退原标题 */
   function commitTitle() {
     const trimmed = title.trim();
@@ -256,7 +427,6 @@ export function DocPageEditor({ file }: DocPageEditorProps) {
     { id: "underline", label: "U", title: t("suiteTbUnderline"), cls: "is-u", active: editor?.isActive("underline") ?? false, run: () => editor?.chain().focus().toggleUnderline().run() },
     { id: "strike", label: "S", title: t("suiteTbStrike"), cls: "is-s", active: editor?.isActive("strike") ?? false, run: () => editor?.chain().focus().toggleStrike().run() },
     { id: "code", label: "</>", title: t("suiteTbCode"), cls: "is-code", active: editor?.isActive("code") ?? false, run: () => editor?.chain().focus().toggleCode().run() },
-    { id: "highlight", label: t("suiteTbHighlight"), title: t("suiteTbHighlight"), cls: "is-hl", active: editor?.isActive("highlight") ?? false, run: () => editor?.chain().focus().toggleMark("highlight", { class: "suite-hl" }).run() },
   ];
 
   const blockMenuItems: readonly { key: string; label: string; run: () => void }[] = [
@@ -305,6 +475,7 @@ export function DocPageEditor({ file }: DocPageEditorProps) {
       </div>
 
       <div className="suite-doc__scroll">
+        <div className="suite-doc__layout">
         {/* 画布空白点击/悬停是纯指针增强：键盘用户直接 Tab 进入标题与正文即可，豁免静态元素交互检查 */}
         {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
         <div
@@ -353,6 +524,26 @@ export function DocPageEditor({ file }: DocPageEditorProps) {
             </button>
           )}
         </div>
+        {/* 大纲侧栏：标题导航（窄屏隐藏，避免挤压画布） */}
+        <aside className="doc-outline" aria-label={t("suiteOutline")}>
+          <p className="doc-outline__title">{t("suiteOutline")}</p>
+          {outline.length === 0 ? (
+            <p className="doc-outline__empty">{t("suiteOutlineEmpty")}</p>
+          ) : (
+            outline.map((h, i) => (
+              <button
+                key={`${h.pos}-${i}`}
+                type="button"
+                className={`doc-outline__item is-h${h.level}`}
+                onClick={() => jumpToHeading(h.pos)}
+                title={h.text}
+              >
+                {h.text || t("suiteTitlePlaceholder")}
+              </button>
+            ))
+          )}
+        </aside>
+        </div>
       </div>
 
       {/* 划选浮动格式工具栏：mousedown 阻止默认，避免点击按钮时选区/焦点丢失 */}
@@ -375,6 +566,150 @@ export function DocPageEditor({ file }: DocPageEditorProps) {
               onClick={b.run}
             >
               {b.label}
+            </button>
+          ))}
+          <span className="suite-toolbar__divider" aria-hidden />
+          {/* 字号：stopPropagation 放行原生下拉（父级 mousedown 阻止默认会压住 select） */}
+          <select
+            className="doc-float-bar__size"
+            value={(editor?.getAttributes("textStyle").fontSize as string | undefined) ?? ""}
+            onMouseDown={(e) => e.stopPropagation()}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v) editor?.chain().focus().setFontSize(v).run();
+              else editor?.chain().focus().unsetFontSize().run();
+            }}
+            title={t("suiteFontSize")}
+            aria-label={t("suiteFontSize")}
+          >
+            {FONT_SIZES.map((s) => (
+              <option key={s || "default"} value={s}>
+                {s || t("suiteFontSizeDefault")}
+              </option>
+            ))}
+          </select>
+          <span className="suite-toolbar__divider" aria-hidden />
+          {(["left", "center", "right"] as const).map((a) => (
+            <button
+              key={a}
+              type="button"
+              className={`suite-toolbar__btn${editor?.isActive({ textAlign: a }) ? " is-active" : ""}`}
+              title={t(a === "left" ? "suiteAlignLeft" : a === "center" ? "suiteAlignCenter" : "suiteAlignRight")}
+              aria-label={t(a === "left" ? "suiteAlignLeft" : a === "center" ? "suiteAlignCenter" : "suiteAlignRight")}
+              aria-pressed={editor?.isActive({ textAlign: a }) ?? false}
+              onClick={() => {
+                // 再次点击当前对齐 = 恢复默认（unset），与文字处理的开关观感一致
+                if (editor?.isActive({ textAlign: a })) editor.chain().focus().unsetTextAlign().run();
+                else editor?.chain().focus().setTextAlign(a).run();
+              }}
+            >
+              <span className="doc-align-glyph" data-align={a} aria-hidden />
+            </button>
+          ))}
+          <span className="suite-toolbar__divider" aria-hidden />
+          {(["text", "fill", "highlight"] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              className={`suite-toolbar__btn is-color${palette?.mode === mode ? " is-active" : ""}`}
+              title={mode === "text" ? t("suiteColorText") : mode === "fill" ? t("suiteColorBg") : t("suiteTbHighlight")}
+              aria-label={mode === "text" ? t("suiteColorText") : mode === "fill" ? t("suiteColorBg") : t("suiteTbHighlight")}
+              aria-pressed={palette?.mode === mode}
+              aria-haspopup="menu"
+              onClick={() => {
+                if (palette?.mode === mode) setPalette(null);
+                else setPalette({ mode, x: floatBar.x - 40, y: floatBar.y + 42 });
+              }}
+            >
+              {mode === "highlight" ? (
+                <span aria-hidden>🖍</span>
+              ) : (
+                <span className="doc-color-glyph" aria-hidden>
+                  A
+                  <span className="doc-color-glyph__bar" data-mode={mode} />
+                </span>
+              )}
+            </button>
+          ))}
+          <span className="suite-toolbar__divider" aria-hidden />
+          <button
+            type="button"
+            className={`suite-toolbar__btn${editor?.isActive("link") ? " is-active" : ""}`}
+            title={t("suiteTbLink")}
+            aria-label={t("suiteTbLink")}
+            aria-pressed={editor?.isActive("link") ?? false}
+            onClick={() => openLinkEditorAt(floatBar.x, floatBar.y + 42)}
+          >
+            <span aria-hidden>🔗</span>
+          </button>
+        </div>
+      )}
+
+      {/* 链接编辑浮层：输入 URL 应用/移除（Enter 应用 / Esc 取消） */}
+      {linkEdit && (
+        // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- 浮层是划选工具栏的延伸，键盘用户经触发按钮 Enter 打开、输入框回车应用/Esc 关闭
+        <div
+          className="doc-link-pop"
+          style={{ left: `${linkEdit.x}px`, top: `${linkEdit.y}px` }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <input
+            className="doc-link-pop__input"
+            value={linkDraft}
+            autoFocus
+            placeholder={t("suiteLinkPlaceholder")}
+            onChange={(e) => setLinkDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                applyLink();
+              }
+              if (e.key === "Escape") setLinkEdit(null);
+            }}
+            aria-label={t("suiteTbLink")}
+            spellCheck={false}
+          />
+          <button type="button" className="doc-link-pop__btn" onClick={applyLink}>
+            {t("suiteLinkApply")}
+          </button>
+          {linkEdit.initial && (
+            <button type="button" className="doc-link-pop__btn is-danger" onClick={removeLink}>
+              {t("suiteLinkRemove")}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* 文字/背景取色浮层（划选工具栏触发） */}
+      {palette && (
+        <ColorPalette mode={palette.mode} x={palette.x} y={palette.y} onPick={pickColor} onClose={() => setPalette(null)} />
+      )}
+
+      {/* 表格工具条：光标在表格内时贴表格顶缘（行/列增删与整表删除） */}
+      {tableBar && editor?.isActive("table") && (
+        <div
+          className="doc-table-bar"
+          role="toolbar"
+          aria-label={t("suiteTableBarAria")}
+          style={{ left: `${tableBar.x}px`, top: `${tableBar.y}px` }}
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          {(
+            [
+              { cmd: "addRowAfter", labelKey: "suiteTbAddRow" },
+              { cmd: "addColumnAfter", labelKey: "suiteTbAddCol" },
+              { cmd: "deleteRow", labelKey: "suiteTbDelRow" },
+              { cmd: "deleteColumn", labelKey: "suiteTbDelCol" },
+              { cmd: "deleteTable", labelKey: "suiteTbDelTable" },
+            ] as const
+          ).map((it) => (
+            <button
+              key={it.cmd}
+              type="button"
+              className="doc-table-bar__btn"
+              onClick={() => runTableCmd(it.cmd)}
+            >
+              {t(it.labelKey)}
             </button>
           ))}
         </div>
@@ -411,6 +746,8 @@ function buildSlashItems(t: ReturnType<typeof useI18n>["t"]): SlashItem[] {
     { id: "h3", glyph: "H3", labelKey: "suiteBlockHeading3", keywords: "heading title biaoti" },
     { id: "bullet", glyph: "•", labelKey: "suiteBlockBullet", keywords: "list bullet liebiao" },
     { id: "ordered", glyph: "1.", labelKey: "suiteBlockOrdered", keywords: "list ordered num liebiao" },
+    { id: "task", glyph: "☑", labelKey: "suiteBlockTask", keywords: "task todo checklist daiban" },
+    { id: "table", glyph: "▦", labelKey: "suiteBlockTable", keywords: "table biao" },
     { id: "quote", glyph: "❝", labelKey: "suiteBlockQuote", keywords: "quote yinyong" },
     { id: "code", glyph: "</>", labelKey: "suiteBlockCode", keywords: "code block daima" },
     { id: "divider", glyph: "—", labelKey: "suiteBlockDivider", keywords: "divider hr fengexian" },
@@ -428,6 +765,8 @@ function buildSlashItems(t: ReturnType<typeof useI18n>["t"]): SlashItem[] {
         case "h3": chain.toggleHeading({ level: 3 }).run(); break;
         case "bullet": chain.toggleBulletList().run(); break;
         case "ordered": chain.toggleOrderedList().run(); break;
+        case "task": chain.toggleTaskList().run(); break;
+        case "table": chain.insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); break;
         case "quote": chain.toggleBlockquote().run(); break;
         case "code": chain.toggleCodeBlock().run(); break;
         case "divider": chain.setHorizontalRule().run(); break;
