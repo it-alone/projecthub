@@ -26,15 +26,37 @@ export interface ColumnProps {
   templates: TaskTemplate[];
   canCreate: boolean;
   canToggle: boolean;
+  /** 正在被拖拽的父任务 id：该分组整体压暗，暗示「父动子随」 */
+  activeGroupId: string | null;
   onOpenTask: (task: Task) => void;
   onToggleDone: (task: Task, done: boolean) => void;
   onCreate: (status: string, title: string) => void;
   onCreateFromTemplate: (tpl: TaskTemplate, status: string) => void;
 }
 
+/** 列内一行 = 一个锚点组：锚点卡 + 紧跟其后的组内子卡（无子卡则组退化为单卡） */
+interface AnchorRow {
+  anchor: Task;
+  children: Task[];
+}
+
+function buildRows(tasks: Task[], anchorIdOf: Record<string, string>): AnchorRow[] {
+  const rows: AnchorRow[] = [];
+  for (const tk of tasks) {
+    const anchorId = anchorIdOf[tk.id];
+    const last = rows[rows.length - 1];
+    if (anchorId && anchorId !== tk.id && last && last.anchor.id === anchorId) {
+      last.children.push(tk);
+    } else {
+      rows.push({ anchor: tk, children: [] });
+    }
+  }
+  return rows;
+}
+
 /** 看板列：色点列头 + 计数 + 完成进度条 + 列内快捷创建（支持模板） */
 export function Column({
-  column, tasks, anchorIdOf, assigneeNames, parentTitles, subProgress, labels, templates, canCreate, canToggle, onOpenTask, onToggleDone, onCreate, onCreateFromTemplate,
+  column, tasks, anchorIdOf, assigneeNames, parentTitles, subProgress, labels, templates, canCreate, canToggle, activeGroupId, onOpenTask, onToggleDone, onCreate, onCreateFromTemplate,
 }: ColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: `column:${column.id}`,
@@ -83,20 +105,37 @@ export function Column({
       </header>
       <div className="board-column__body">
         <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-          {tasks.map((task) => (
-            <TaskCard
-              key={task.id}
-              task={task}
-              inGroup={anchorIdOf[task.id] !== undefined && anchorIdOf[task.id] !== task.id}
-              assigneeName={task.assigneeId ? assigneeNames[task.assigneeId] ?? null : null}
-              parentTitle={task.parentId ? parentTitles[task.parentId] ?? null : null}
-              subProgress={subProgress[task.id] ?? null}
-              labels={labels}
-              canToggle={canToggle}
-              onOpen={onOpenTask}
-              onToggleDone={onToggleDone}
-            />
-          ))}
+          {buildRows(tasks, anchorIdOf).map(({ anchor, children }) => {
+            const card = (task: Task, inGroup: boolean, isParent: boolean) => (
+              <TaskCard
+                key={task.id}
+                task={task}
+                inGroup={inGroup}
+                isParent={isParent}
+                assigneeName={task.assigneeId ? assigneeNames[task.assigneeId] ?? null : null}
+                parentTitle={task.parentId ? parentTitles[task.parentId] ?? null : null}
+                subProgress={subProgress[task.id] ?? null}
+                labels={labels}
+                canToggle={canToggle}
+                onOpen={onOpenTask}
+                onToggleDone={onToggleDone}
+              />
+            );
+            if (children.length === 0) return card(anchor, false, false);
+            const groupDragging = activeGroupId === anchor.id;
+            const allDone = children.every((c) => c.completedAt);
+            return (
+              <div
+                key={anchor.id}
+                className={`task-group${groupDragging ? " is-group-dragging" : ""}`}
+              >
+                {card(anchor, false, true)}
+                <div className={`task-group__children${allDone ? " is-all-done" : ""}`}>
+                  {children.map((c) => card(c, true, false))}
+                </div>
+              </div>
+            );
+          })}
         </SortableContext>
       </div>
       {canCreate && (

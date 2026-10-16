@@ -11,12 +11,14 @@ import { isOverdue } from "~/lib/date";
 
 export interface TaskCardProps {
   task: Task;
-  /** 父任务同列时为 true：组内子卡缩进展示（独立子卡不缩进，仅显示父标识） */
+  /** 父任务同列时为 true：组内子卡紧凑展示（父卡就在正上方，不再重复父标识） */
   inGroup?: boolean;
+  /** 本列内有子卡跟随的父任务卡：加强视觉以承载分组层级 */
+  isParent?: boolean;
   assigneeName: string | null;
-  /** 父任务标题（子任务卡片标识用，顶层任务为 null） */
+  /** 父任务标题（仅独立子卡——父任务在其他列——显示为父标识 chip） */
   parentTitle: string | null;
-  /** 子任务完成进度（父任务卡片角标用，无子任务为 null） */
+  /** 子任务完成进度（父任务卡片进度条用，无子任务为 null） */
   subProgress: { done: number; total: number } | null;
   labels: Label[];
   canToggle: boolean;
@@ -30,7 +32,7 @@ function isSameDay(a: Date, b: Date): boolean {
     && a.getDate() === b.getDate();
 }
 
-export function TaskCard({ task, inGroup = false, assigneeName, parentTitle, subProgress, labels, canToggle, onOpen, onToggleDone }: TaskCardProps) {
+export function TaskCard({ task, inGroup = false, isParent = false, assigneeName, parentTitle, subProgress, labels, canToggle, onOpen, onToggleDone }: TaskCardProps) {
   const { locale } = useI18n();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: task.id, data: { type: "task", status: task.status } });
@@ -51,7 +53,7 @@ export function TaskCard({ task, inGroup = false, assigneeName, parentTitle, sub
   return (
     <div
       ref={setNodeRef}
-      className={`task-card${inGroup ? " task-card--child" : ""}${isDragging ? " is-dragging" : ""}`}
+      className={`task-card${inGroup ? " task-card--child" : ""}${isParent ? " task-card--parent" : ""}${isDragging ? " is-dragging" : ""}`}
       style={{
         transform: CSS.Transform.toString(transform),
         transition,
@@ -90,13 +92,13 @@ export function TaskCard({ task, inGroup = false, assigneeName, parentTitle, sub
         <Icon name="check" size={11} />
       </button>
       <div className="task-card__main">
-        {parentTitle && (
+        {parentTitle && !inGroup && (
           <span
             className="task-card__parent"
             title={t("parentTaskAria", { title: parentTitle })}
           >
             <Icon name="cornerDownRight" size={11} />
-            {parentTitle}
+            <span className="task-card__parent-name">{parentTitle}</span>
           </span>
         )}
         <p className={`task-card__title${done ? " task-card__title--done" : ""}`}>
@@ -130,14 +132,23 @@ export function TaskCard({ task, inGroup = false, assigneeName, parentTitle, sub
           )}
           {subProgress && (
             <span
-              className="task-card__subtask-count"
+              className="task-card__subprog"
               title={t("subtaskProgressTitle", {
                 done: subProgress.done,
                 total: subProgress.total,
               })}
             >
-              <Icon name="cornerDownRight" size={11} />
-              {subProgress.done}/{subProgress.total}
+              <Icon name="workflow" size={12} />
+              <span className="task-card__subbar" aria-hidden>
+                <span
+                  style={{
+                    width: `${Math.round((subProgress.done / subProgress.total) * 100)}%`,
+                  }}
+                />
+              </span>
+              <span className="task-card__subnum">
+                {subProgress.done}/{subProgress.total}
+              </span>
             </span>
           )}
           {task.subtasks.length > 0 && (

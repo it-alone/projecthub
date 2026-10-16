@@ -1198,27 +1198,110 @@ select.input {
   box-shadow: var(--shadow-lg);
 }
 
-/* DragOverlay 跟随指针的拖拽影（源卡留在原地，由 is-dragging 压暗） */
+/* DragOverlay 跟随指针的拖拽影（源卡留在原地，由 is-dragging 压暗）；
+   纵向排布：标题在上、子任务数角标在下 */
 .task-card--overlay {
   box-shadow: var(--shadow-lg);
+  flex-direction: column;
+  gap: var(--space-1);
+  max-width: 280px;
 }
 
-/* 拖动父任务时的跟随子任务数角标 */
+/* 拖拽影外框：整组拖拽时以层叠卡片暗示「拖的是一叠任务」 */
+.task-overlay {
+  position: relative;
+  isolation: isolate;
+}
+
+.task-overlay--stack::before,
+.task-overlay--stack::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+.task-overlay--stack::before { transform: translate(5px, 5px); }
+.task-overlay--stack::after { transform: translate(10px, 10px); opacity: 0.6; }
+
+/* 拖动父任务时的跟随子任务数角标：实底品牌色，浮层上高可读 */
 .task-card__overlay-badge {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  margin-top: var(--space-1);
+  align-self: flex-start;
   padding: 1px var(--space-2);
   border-radius: var(--radius-full);
-  background: var(--color-bg-subtle);
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
   font-size: 11px;
-  color: var(--color-text-muted);
+  font-weight: 600;
 }
 
-/* 看板父分组内的子卡：左缩进强化“跟随父任务”的层级 */
+/* ---------- 看板父子分组：父卡为组头，子卡挂在连接竖线下 ---------- */
+
+/* 父卡：边框与标题加重，成为分组的视觉锚点 */
+.task-card--parent {
+  border-color: var(--color-border-strong);
+}
+
+.task-card--parent .task-card__title {
+  font-weight: 600;
+}
+
+/* 组容器：拖动父任务时整组压暗，暗示「父动子随」 */
+.task-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.task-group.is-group-dragging .task-card--parent,
+.task-group.is-group-dragging .task-group__children {
+  opacity: 0.45;
+}
+
+/* 组内子卡序列：缩进 + 左侧连接竖线；组内间距小于列间距以示从属 */
+.task-group__children {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: var(--space-1) 0 0 var(--space-3);
+  padding-left: 10px;
+  border-left: 2px solid var(--color-border-strong);
+  transition: border-color var(--transition), opacity var(--transition);
+}
+
+/* 悬停组内任一卡：竖线亮起品牌色，暗示整组联动移动 */
+.task-group:hover .task-group__children {
+  border-color: color-mix(in srgb, var(--color-primary) 45%, var(--color-border));
+}
+
+/* 子任务全部完成：竖线转成功色（完成语义） */
+.task-group__children.is-all-done {
+  border-color: color-mix(in srgb, var(--color-success) 55%, var(--color-border));
+}
+
+/* 组内子卡：紧凑、去阴影、字号降一档，与父卡拉开层级 */
 .task-card--child {
-  margin-left: var(--space-3);
+  padding: 6px 10px;
+  box-shadow: none;
+}
+
+.task-card--child .task-card__title {
+  font-size: 12px;
+}
+
+.task-card--child .task-card__foot {
+  margin-top: 6px;
+  gap: var(--space-1);
+}
+
+.task-card--child .task-card__assignee {
+  width: 18px;
+  height: 18px;
+  font-size: 9px;
 }
 
 /* 圆形完成勾选（卡片/抽屉共用） */
@@ -1249,21 +1332,29 @@ select.input {
 
 .task-card__main { flex: 1; min-width: 0; }
 
-/* 子任务卡片：标题上方的父任务标识 */
+/* 独立子卡（父任务在其他列）：父标识 pill，一眼可溯源 */
 .task-card__parent {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: var(--space-1);
   max-width: 100%;
-  margin-bottom: 2px;
+  margin-bottom: var(--space-1);
+  padding: 0 6px;
+  line-height: 18px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-muted);
+  border: 1px solid var(--color-border);
   font-size: 11px;
-  color: var(--color-text-muted);
-  overflow: hidden;
+  color: var(--color-text-secondary);
   white-space: nowrap;
-  text-overflow: ellipsis;
-  vertical-align: middle;
 }
-.task-card__parent svg { flex: none; }
+.task-card__parent svg { flex: none; color: var(--color-text-faint); }
+
+.task-card__parent-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 .task-card__title {
   margin: 0;
@@ -1295,16 +1386,35 @@ select.input {
   font-variant-numeric: tabular-nums;
 }
 
-/* 父卡片上的子任务完成进度角标（完整子任务，区别于清单角标） */
-.task-card__subtask-count {
+/* 父卡片子任务进度：层级图标 + 迷你进度条 + 计数
+   （workflow 图标区别于清单角标的 check 图标，二者含义不同） */
+.task-card__subprog {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--space-1);
   font-size: 12px;
   color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
 }
-.task-card__subtask-count svg { color: var(--color-text-faint); }
+
+.task-card__subprog svg { color: var(--color-text-faint); }
+
+.task-card__subbar {
+  position: relative;
+  width: var(--space-6);
+  height: 3px;
+  border-radius: var(--radius-full);
+  background: var(--color-border-strong);
+  overflow: hidden;
+}
+
+.task-card__subbar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-primary);
+  transition: width var(--transition);
+}
 
 .task-card__due {
   display: inline-flex;

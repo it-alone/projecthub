@@ -276,6 +276,7 @@ export function Board({
                 templates={templates}
                 canCreate={canCreate}
                 canToggle={canToggle}
+                activeGroupId={dragging?.id ?? null}
                 onOpenTask={onOpenTask}
                 onToggleDone={onToggleDone}
                 onCreate={onCreate}
@@ -286,13 +287,15 @@ export function Board({
       </div>
       <DragOverlay dropAnimation={null}>
         {dragging && (
-          <div className="task-card task-card--overlay">
-            <p className="task-card__title">{dragging.title}</p>
-            {draggingSubCount > 0 && (
-              <span className="task-card__overlay-badge">
-                {t("dragWithSubs", { count: draggingSubCount })}
-              </span>
-            )}
+          <div className={`task-overlay${draggingSubCount > 0 ? " task-overlay--stack" : ""}`}>
+            <div className="task-card task-card--overlay">
+              <p className="task-card__title">{dragging.title}</p>
+              {draggingSubCount > 0 && (
+                <span className="task-card__overlay-badge">
+                  {t("dragWithSubs", { count: draggingSubCount })}
+                </span>
+              )}
+            </div>
           </div>
         )}
       </DragOverlay>
