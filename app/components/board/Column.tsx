@@ -122,15 +122,13 @@ export function Column({
               />
             );
             if (children.length === 0) return card(anchor, false, false);
-            const groupDragging = activeGroupId === anchor.id;
-            const allDone = children.every((c) => c.completedAt);
             return (
               <div
                 key={anchor.id}
-                className={`task-group${groupDragging ? " is-group-dragging" : ""}`}
+                className={`task-group${activeGroupId === anchor.id ? " is-group-dragging" : ""}`}
               >
                 {card(anchor, false, true)}
-                <div className={`task-group__children${allDone ? " is-all-done" : ""}`}>
+                <div className="task-group__children">
                   {children.map((c) => card(c, true, false))}
                 </div>
               </div>

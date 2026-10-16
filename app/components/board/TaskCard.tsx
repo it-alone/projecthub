@@ -11,9 +11,9 @@ import { isOverdue } from "~/lib/date";
 
 export interface TaskCardProps {
   task: Task;
-  /** 父任务同列时为 true：组内子卡紧凑展示（父卡就在正上方，不再重复父标识） */
+  /** 父任务同列时为 true：子卡作为面板内嵌行展示（父卡就在正上方，不再重复父标识） */
   inGroup?: boolean;
-  /** 本列内有子卡跟随的父任务卡：加强视觉以承载分组层级 */
+  /** 本列内有子卡跟随的父任务卡：作为分组面板的头部呈现 */
   isParent?: boolean;
   assigneeName: string | null;
   /** 父任务标题（仅独立子卡——父任务在其他列——显示为父标识 chip） */
@@ -132,20 +132,18 @@ export function TaskCard({ task, inGroup = false, isParent = false, assigneeName
           )}
           {subProgress && (
             <span
-              className="task-card__subprog"
+              className={`task-card__subprog${subProgress.done >= subProgress.total ? " is-complete" : ""}`}
               title={t("subtaskProgressTitle", {
                 done: subProgress.done,
                 total: subProgress.total,
               })}
             >
-              <Icon name="workflow" size={12} />
-              <span className="task-card__subbar" aria-hidden>
-                <span
-                  style={{
-                    width: `${Math.round((subProgress.done / subProgress.total) * 100)}%`,
-                  }}
-                />
-              </span>
+              {/* 微型进度环：--p 为完成百分比，环形底由 global.css 的遮罩实现 */}
+              <span
+                className="task-card__subring"
+                style={{ "--p": `${(subProgress.done / subProgress.total) * 100}%` } as CSSProperties}
+                aria-hidden
+              />
               <span className="task-card__subnum">
                 {subProgress.done}/{subProgress.total}
               </span>
