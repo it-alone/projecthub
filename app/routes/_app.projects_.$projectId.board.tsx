@@ -67,20 +67,24 @@ export default function BoardRoute() {
     targetStatus: string;
     prevOrder: string | null;
     nextOrder: string | null;
+    order: string;
   }) {
     // 无 task:update 时先拦截，避免乐观移动后被服务层回滚造成闪烁
     if (!canToggle) {
       toast.error(t("noPermission"));
       return;
     }
-    // 乐观更新：本地先整组移动（父任务级联子任务同列），失败则由 liveQuery 回读
+    // 乐观更新：本地整组移动并直接落位（父任务带 order，与 service 写入值一致；
+    // 只改 status 会让卡片先按旧 order 闪到错误位置再跳一次），失败由 liveQuery 回读
     const childIds = new Set(
       tasks.filter((t) => t.parentId === intent.taskId).map((t) => t.id),
     );
     setTasks((prev) =>
-      prev.map((t) =>
-        t.id === intent.taskId || childIds.has(t.id) ? { ...t, status: intent.targetStatus } : t,
-      ),
+      prev.map((t) => {
+        if (t.id === intent.taskId) return { ...t, status: intent.targetStatus, order: intent.order };
+        if (childIds.has(t.id)) return { ...t, status: intent.targetStatus };
+        return t;
+      }),
     );
     const moved = tasks.find((t) => t.id === intent.taskId);
     const targetDone = project.statusColumns.find((c) => c.id === intent.targetStatus)?.isDone;

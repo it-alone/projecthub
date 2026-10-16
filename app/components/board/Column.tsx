@@ -39,8 +39,7 @@ export function Column({
   const { setNodeRef, isOver } = useDroppable({
     id: `column:${column.id}`,
     data: { type: "column", status: column.id },
-  });
-  const [adding, setAdding] = useState(false);
+  });  const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
   const doneCount = tasks.filter((t) => t.completedAt).length;
 
@@ -51,7 +50,10 @@ export function Column({
   }
 
   return (
+    // 可放置区域挂在整列（含列头/加号区）：拖到列内任意位置都算本列，
+    // 避免松手在列边缘时被邻近列的可放置矩形抢走
     <section
+      ref={setNodeRef}
       className={`board-column${isOver ? " is-over" : ""}`}
       aria-label={`${column.name}（${tasks.length}）`}
       style={{ "--col-c": statusColor(column.id) } as CSSProperties}
@@ -79,7 +81,7 @@ export function Column({
           </button>
         )}
       </header>
-      <div ref={setNodeRef} className="board-column__body">
+      <div className="board-column__body">
         <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
           {tasks.map((task) => (
             <TaskCard

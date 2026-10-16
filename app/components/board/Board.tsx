@@ -3,10 +3,13 @@ import {
   DndContext,
   DragOverlay,
   KeyboardSensor,
+  MeasuringStrategy,
   PointerSensor,
   closestCorners,
+  pointerWithin,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
@@ -15,6 +18,7 @@ import type { StatusColumn } from "~/models/project";
 import type { Task } from "~/models/task";
 import type { Label } from "~/models/label";
 import type { TaskTemplate } from "~/models/taskTemplate";
+import { generateKeyBetween } from "~/lib/fractional-index";
 import { t } from "~/lib/i18n";
 import { Column } from "./Column";
 
@@ -23,7 +27,30 @@ export interface MoveIntent {
   targetStatus: string;
   prevOrder: string | null;
   nextOrder: string | null;
+  /** 落点 order（generateKeyBetween(prev, next)）：路由层乐观落位用，与 service 端写入值一致 */
+  order: string;
 }
+
+/**
+ * 碰撞策略：指针坐标优先（pointerWithin）——拖拽影与列同宽，closestCorners 会按
+ * 影的角点吸附到邻近列，造成“指 A 落 B”；指针不在任何可放置目标内（列间沟槽）
+ * 时退回 closestCorners。指针同时命中卡片与列容器时优先卡片（内层目标），
+ * 保证插入位置按所指卡片的上/下半判定。
+ */
+const boardCollisionDetection: CollisionDetection = (args) => {
+  const pointerCollisions = pointerWithin(args);
+  if (pointerCollisions.length > 0) {
+    const taskHit = pointerCollisions.find((c) => {
+      // Collision.data 是 Record<string, any>，整体收窄后取 droppableContainer.data.current
+      const data = c.data as
+        | { droppableContainer: { data?: { current?: { type?: string } } } }
+        | undefined;
+      return data?.droppableContainer.data?.current?.type === "task";
+    });
+    return [taskHit ?? pointerCollisions[0]!];
+  }
+  return closestCorners(args);
+};
 
 export interface BoardProps {
   columns: StatusColumn[];
@@ -206,7 +233,13 @@ export function Board({
       nextOrder = layout.anchors[insertPos]?.order ?? null;
     }
 
-    onMove({ taskId: task.id, targetStatus, prevOrder, nextOrder });
+    onMove({
+      taskId: task.id,
+      targetStatus,
+      prevOrder,
+      nextOrder,
+      order: generateKeyBetween(prevOrder, nextOrder),
+    });
     const columnName = columns.find((c) => c.id === targetStatus)?.name ?? targetStatus;
     setAnnouncement(
       draggingSubCount > 0
@@ -218,7 +251,9 @@ export function Board({
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCorners}
+      collisionDetection={boardCollisionDetection}
+      // 拖拽期间持续重测可放置矩形：列内自动滚动/卡片增删后，旧矩形会把落点判到错误的列
+      measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
