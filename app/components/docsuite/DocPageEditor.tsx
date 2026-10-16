@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { useNavigate } from "@remix-run/react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -15,7 +15,7 @@ import { docFileService } from "~/services/docFile.service";
 import { docJsonToMarkdown } from "~/lib/docMarkdown";
 import { downloadTextFile } from "~/lib/download";
 import { useI18n } from "~/lib/i18n";
-import { Icon } from "~/components/ui/Icon";
+import { Icon, type IconName } from "~/components/ui/Icon";
 import { useToast } from "~/components/ui/Toast";
 import { SlashMenu } from "~/components/docsuite/SlashMenu";
 import { ColorPalette } from "~/components/docsuite/ColorPalette";
@@ -92,8 +92,8 @@ export function DocPageEditor({ file }: DocPageEditorProps) {
       // 飞书式待办清单：勾选框可点，nested 允许清单嵌套
       TaskList,
       TaskItem.configure({ nested: true }),
-      // 文档内表格块（列宽不开放拖拽，保持简单）
-      TableKit.configure({ table: { resizable: false } }),
+      // 文档内表格块：列宽可拖拽（列缘 resize handle，成熟表格的标准能力）
+      TableKit.configure({ table: { resizable: true } }),
       // 文字/背景色/字号（span 内联样式，色值来自 ~/lib/palette 数据色板）
       TextStyle,
       Color,
@@ -330,9 +330,46 @@ export function DocPageEditor({ file }: DocPageEditorProps) {
     setBlockMenu(null);
   }
 
-  /** 表格工具条动作（tiptap 原生命令，自动进撤销历史） */
-  function runTableCmd(cmd: "addRowAfter" | "addColumnAfter" | "deleteRow" | "deleteColumn" | "deleteTable") {
+  /** 表格工具条支持的命令全集（tiptap 原生命令，自动进撤销历史；行/列删与整表删除均可 ⌘Z 撤销，不做二次确认） */
+  type TableCmd =
+    | "addRowBefore"
+    | "addRowAfter"
+    | "deleteRow"
+    | "addColumnBefore"
+    | "addColumnAfter"
+    | "deleteColumn"
+    | "toggleHeaderRow"
+    | "toggleHeaderColumn"
+    | "mergeCells"
+    | "splitCell"
+    | "deleteTable";
+
+  /** 表格工具条动作 */
+  function runTableCmd(cmd: TableCmd) {
     editor?.chain().focus()[cmd]().run();
+  }
+
+  /** 读当前表格的表头标记：首行是否整行为表头 / 首列是否整列为表头（表头切换按钮的激活态） */
+  function readHeaderFlags(): { row: boolean; col: boolean } {
+    if (!editor?.isActive("table")) return { row: false, col: false };
+    const { $from } = editor.state.selection;
+    for (let depth = $from.depth; depth > 0; depth--) {
+      const table = $from.node(depth);
+      if (table.type.name !== "table") continue;
+      // toggle 命令总是整行/整列切换，所以这里要求“整行/整列”皆为 tableHeader 才算激活；
+      // 只看首行首格会被“表头列开启”误判（此时每行首格都是 th）
+      const firstRow = table.firstChild;
+      let row = !!firstRow && firstRow.childCount > 0;
+      firstRow?.forEach((cell) => {
+        if (cell.type.name !== "tableHeader") row = false;
+      });
+      let col = true;
+      table.forEach((rowNode) => {
+        if (!rowNode.firstChild || rowNode.firstChild.type.name !== "tableHeader") col = false;
+      });
+      return { row, col };
+    }
+    return { row: false, col: false };
   }
 
   /** 块样式下拉当前值：按光标所在块推导（列表类走独立按钮，不进下拉） */
@@ -531,6 +568,53 @@ export function DocPageEditor({ file }: DocPageEditorProps) {
     { key: "down", label: t("suiteBlockDown"), run: () => blockMenu && moveBlock(blockMenu.start, 1) },
     { key: "duplicate", label: t("suiteBlockDuplicate"), run: () => blockMenu && duplicateBlock(blockMenu.start) },
     { key: "delete", label: t("suiteBlockDelete"), run: () => blockMenu && deleteBlock(blockMenu.start) },
+  ];
+
+  /* ----- 表格工具条按钮组：行 / 列 / 表头 / 合并拆分 / 整表（图标 + 分组分隔，成熟表格操作全集） ----- */
+  const headerFlags = readHeaderFlags();
+  const canMergeCells = !!editor?.can().mergeCells();
+  const canSplitCell = !!editor?.can().splitCell();
+  type TableBtn = {
+    id: string;
+    icon: IconName;
+    label: string;
+    active?: boolean;
+    disabled?: boolean;
+    danger?: boolean;
+    run: () => void;
+  };
+  const tableGroups: TableBtn[][] = [
+    [
+      { id: "addRowBefore", icon: "rowAbove", label: t("suiteTbRowAbove"), run: () => runTableCmd("addRowBefore") },
+      { id: "addRowAfter", icon: "rowBelow", label: t("suiteTbRowBelow"), run: () => runTableCmd("addRowAfter") },
+      { id: "deleteRow", icon: "rowRemove", label: t("suiteTbDelRow"), run: () => runTableCmd("deleteRow") },
+    ],
+    [
+      { id: "addColumnBefore", icon: "colLeft", label: t("suiteTbColLeft"), run: () => runTableCmd("addColumnBefore") },
+      { id: "addColumnAfter", icon: "colRight", label: t("suiteTbColRight"), run: () => runTableCmd("addColumnAfter") },
+      { id: "deleteColumn", icon: "colRemove", label: t("suiteTbDelCol"), run: () => runTableCmd("deleteColumn") },
+    ],
+    [
+      {
+        id: "toggleHeaderRow",
+        icon: "headerRow",
+        label: t("suiteTbHeaderRow"),
+        active: headerFlags.row,
+        run: () => runTableCmd("toggleHeaderRow"),
+      },
+      {
+        id: "toggleHeaderColumn",
+        icon: "headerCol",
+        label: t("suiteTbHeaderCol"),
+        active: headerFlags.col,
+        run: () => runTableCmd("toggleHeaderColumn"),
+      },
+    ],
+    [
+      { id: "mergeCells", icon: "cellMerge", label: t("suiteTbMerge"), disabled: !canMergeCells, run: () => runTableCmd("mergeCells") },
+      { id: "splitCell", icon: "cellSplit", label: t("suiteTbSplit"), disabled: !canSplitCell, run: () => runTableCmd("splitCell") },
+    ],
+    [{ id: "deleteTable", icon: "trash", label: t("suiteTbDelTable"), danger: true, run: () => runTableCmd("deleteTable") }],
   ];
 
   return (
@@ -950,7 +1034,7 @@ export function DocPageEditor({ file }: DocPageEditorProps) {
         <ColorPalette mode={palette.mode} x={palette.x} y={palette.y} onPick={pickColor} onClose={() => setPalette(null)} />
       )}
 
-      {/* 表格工具条：光标在表格内时贴表格顶缘（行/列增删与整表删除） */}
+      {/* 表格工具条：光标在表格内时贴表格顶缘，图标分组——行/列增删、表头切换、合并/拆分、删除整表 */}
       {tableBar && editor?.isActive("table") && (
         <div
           className="doc-table-bar"
@@ -959,23 +1043,24 @@ export function DocPageEditor({ file }: DocPageEditorProps) {
           style={{ left: `${tableBar.x}px`, top: `${tableBar.y}px` }}
           onMouseDown={(e) => e.preventDefault()}
         >
-          {(
-            [
-              { cmd: "addRowAfter", labelKey: "suiteTbAddRow" },
-              { cmd: "addColumnAfter", labelKey: "suiteTbAddCol" },
-              { cmd: "deleteRow", labelKey: "suiteTbDelRow" },
-              { cmd: "deleteColumn", labelKey: "suiteTbDelCol" },
-              { cmd: "deleteTable", labelKey: "suiteTbDelTable" },
-            ] as const
-          ).map((it) => (
-            <button
-              key={it.cmd}
-              type="button"
-              className="doc-table-bar__btn"
-              onClick={() => runTableCmd(it.cmd)}
-            >
-              {t(it.labelKey)}
-            </button>
+          {tableGroups.map((group, gi) => (
+            <Fragment key={gi}>
+              {gi > 0 && <span className="doc-table-bar__divider" aria-hidden />}
+              {group.map((btn) => (
+                <button
+                  key={btn.id}
+                  type="button"
+                  className={`doc-table-bar__btn${btn.active ? " is-active" : ""}${btn.danger ? " is-danger" : ""}`}
+                  title={btn.label}
+                  aria-label={btn.label}
+                  aria-pressed={btn.active}
+                  disabled={btn.disabled}
+                  onClick={() => btn.run()}
+                >
+                  <Icon name={btn.icon} size={15} />
+                </button>
+              ))}
+            </Fragment>
           ))}
         </div>
       )}

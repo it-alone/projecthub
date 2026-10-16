@@ -6950,20 +6950,47 @@ select.input {
   transform: translateX(-50%);
 }
 
+.doc-table-bar__divider {
+  flex: none;
+  width: 1px;
+  height: 18px;
+  margin: 0 var(--space-1);
+  background: var(--color-border);
+}
+
+/* 图标按钮（行/列增删、表头切换、合并/拆分、删表），与固定工具栏按钮同规格 */
 .doc-table-bar__btn {
-  padding: var(--space-1) var(--space-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
   border: 0;
   border-radius: var(--radius-sm);
   background: none;
-  font-size: 12px;
   color: var(--color-text-secondary);
-  white-space: nowrap;
   cursor: pointer;
 }
 
-.doc-table-bar__btn:hover {
+.doc-table-bar__btn:hover:not(:disabled) {
   background: var(--color-surface-muted);
   color: var(--color-text);
+}
+
+.doc-table-bar__btn.is-active {
+  background: var(--color-primary-soft);
+  color: var(--color-primary-strong);
+}
+
+.doc-table-bar__btn.is-danger:hover:not(:disabled) {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.doc-table-bar__btn:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 .doc-table-bar__btn:focus-visible {
@@ -7389,6 +7416,26 @@ select.input {
   content: "";
   background: var(--color-primary-soft);
   pointer-events: none;
+}
+
+/* 列宽拖拽（resizable 表格）：可拖宽的表格包一层 wrapper 防溢出画布；
+   列缘把手由 prosemirror-tables 注入单元格，光标类挂在编辑器根上 */
+.suite-doc__prose .ProseMirror .tableWrapper {
+  overflow-x: auto;
+}
+
+.suite-doc__prose .ProseMirror .column-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  bottom: -2px;
+  width: 4px;
+  background-color: var(--color-primary);
+  pointer-events: none;
+}
+
+.suite-doc__prose .ProseMirror.resize-cursor {
+  cursor: col-resize;
 }
 
 /* ---------- 斜杠菜单（/ 触发的块插入浮层） ---------- */

@@ -46,7 +46,17 @@ export type IconName =
   | "outdent"
   | "eraser"
   | "highlighter"
-  | "divider";
+  | "divider"
+  | "rowAbove"
+  | "rowBelow"
+  | "rowRemove"
+  | "colLeft"
+  | "colRight"
+  | "colRemove"
+  | "cellMerge"
+  | "cellSplit"
+  | "headerRow"
+  | "headerCol";
 
 const PATHS: Record<IconName, React.ReactNode> = {
   kanban: (
@@ -345,6 +355,79 @@ const PATHS: Record<IconName, React.ReactNode> = {
     </>
   ),
   divider: <path d="M4 12h16" />,
+  // 表格操作组：行/列增删用「行/列线 + 加号/减号」隐喻，插入位置由加号相对行/列线的方位表达
+  rowAbove: (
+    <>
+      <path d="M4 14h16" />
+      <path d="M4 20h16" />
+      <path d="M12 2v8" />
+      <path d="M8 6h8" />
+    </>
+  ),
+  rowBelow: (
+    <>
+      <path d="M4 4h16" />
+      <path d="M4 10h16" />
+      <path d="M12 14v8" />
+      <path d="M8 18h8" />
+    </>
+  ),
+  rowRemove: (
+    <>
+      <rect x="3" y="9" width="18" height="6" rx="1" />
+      <path d="M9.5 12h5" />
+    </>
+  ),
+  colLeft: (
+    <>
+      <path d="M14 4v16" />
+      <path d="M20 4v16" />
+      <path d="M2 12h8" />
+      <path d="M6 8v8" />
+    </>
+  ),
+  colRight: (
+    <>
+      <path d="M4 4v16" />
+      <path d="M10 4v16" />
+      <path d="M14 12h8" />
+      <path d="M18 8v8" />
+    </>
+  ),
+  colRemove: (
+    <>
+      <rect x="9" y="3" width="6" height="18" rx="1" />
+      <path d="M12 9.5v5" />
+    </>
+  ),
+  // 合并 = 箭头相向而行；拆分 = 箭头背向而行（镜像字形，语义互斥）
+  cellMerge: (
+    <>
+      <path d="M2 12h20" />
+      <path d="m6 8-4 4 4 4" />
+      <path d="m18 8 4 4-4 4" />
+    </>
+  ),
+  cellSplit: (
+    <>
+      <path d="M2 12h20" />
+      <path d="m6 16-4-4 4-4" />
+      <path d="m18 16 4-4-4-4" />
+    </>
+  ),
+  // 表头切换：面板图形，实心带所在的行/列即表头
+  headerRow: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M3 4h18v5H3z" fill="currentColor" />
+    </>
+  ),
+  headerCol: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M3 4h5v16H3z" fill="currentColor" />
+    </>
+  ),
 };
 
 export interface IconProps {
