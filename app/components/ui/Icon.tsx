@@ -36,7 +36,17 @@ export type IconName =
   | "workflow"
   | "idcard"
   | "markdown"
-  | "fileText";
+  | "fileText"
+  | "undo"
+  | "redo"
+  | "list"
+  | "listOrdered"
+  | "listTodo"
+  | "indent"
+  | "outdent"
+  | "eraser"
+  | "highlighter"
+  | "divider";
 
 const PATHS: Record<IconName, React.ReactNode> = {
   kanban: (
@@ -264,6 +274,77 @@ const PATHS: Record<IconName, React.ReactNode> = {
       <path d="M10 9H8" />
     </>
   ),
+  undo: (
+    <>
+      <path d="M9 14 4 9l5-5" />
+      <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
+    </>
+  ),
+  redo: (
+    <>
+      <path d="m15 14 5-5-5-5" />
+      <path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" />
+    </>
+  ),
+  list: (
+    <>
+      <path d="M8 6h13" />
+      <path d="M8 12h13" />
+      <path d="M8 18h13" />
+      <path d="M3 6h.01" />
+      <path d="M3 12h.01" />
+      <path d="M3 18h.01" />
+    </>
+  ),
+  listOrdered: (
+    <>
+      <path d="M10 6h11" />
+      <path d="M10 12h11" />
+      <path d="M10 18h11" />
+      <path d="M4 6h1v4" />
+      <path d="M4 10h2" />
+      <path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1" />
+    </>
+  ),
+  listTodo: (
+    <>
+      <rect x="3" y="5" width="6" height="6" rx="1" />
+      <path d="m3 17 2 2 4-4" />
+      <path d="M13 6h8" />
+      <path d="M13 12h8" />
+      <path d="M13 18h8" />
+    </>
+  ),
+  indent: (
+    <>
+      <path d="M21 5H11" />
+      <path d="M21 12h-7" />
+      <path d="M21 19H11" />
+      <path d="m3 8 4 4-4 4" />
+    </>
+  ),
+  outdent: (
+    <>
+      <path d="M21 5H11" />
+      <path d="M21 12h-7" />
+      <path d="M21 19H11" />
+      <path d="m7 8-4 4 4 4" />
+    </>
+  ),
+  eraser: (
+    <>
+      <path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21" />
+      <path d="M22 21H7" />
+      <path d="m5 11 9 9" />
+    </>
+  ),
+  highlighter: (
+    <>
+      <path d="m9 11-6 6v3h9l3-3" />
+      <path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4" />
+    </>
+  ),
+  divider: <path d="M4 12h16" />,
 };
 
 export interface IconProps {

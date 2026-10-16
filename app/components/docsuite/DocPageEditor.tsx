@@ -37,12 +37,18 @@ const CLOSED_SLASH: SlashMenuState = { open: false, x: 0, y: 0, query: "", items
 /** 字号候选（px；空 = 默认字号） */
 const FONT_SIZES = ["", "12px", "14px", "16px", "18px", "24px", "32px", "48px"] as const;
 
+/** 对齐按钮文案键（固定工具栏与划选浮动栏共用） */
+function alignKey(a: "left" | "center" | "right") {
+  return a === "left" ? "suiteAlignLeft" : a === "center" ? "suiteAlignCenter" : "suiteAlignRight";
+}
+
 export interface DocPageEditorProps {
   file: DocFile;
 }
 
 /**
- * 飞书式富文本文档编辑器：顶部轻量栏（保存状态 + 撤销重做 + 导出）+
+ * 飞书式富文本文档编辑器：顶部轻量栏（保存状态 + 导出）+
+ * 固定格式工具栏（内容上方常驻：块样式/内联样式/列表/对齐/插入）+
  * 划选浮动格式工具栏 + 块悬浮把手（上移/下移/复制/删除）+ "/" 斜杠菜单。
  * 标题在画布内、与正文同版式；草稿只在 tiptap 实例里，600ms 无输入才落库，
  * 卸载时兜底保存防丢最后一段输入。
@@ -329,6 +335,53 @@ export function DocPageEditor({ file }: DocPageEditorProps) {
     editor?.chain().focus()[cmd]().run();
   }
 
+  /** 块样式下拉当前值：按光标所在块推导（列表类走独立按钮，不进下拉） */
+  function currentBlockType(): string {
+    if (editor?.isActive("heading", { level: 1 })) return "h1";
+    if (editor?.isActive("heading", { level: 2 })) return "h2";
+    if (editor?.isActive("heading", { level: 3 })) return "h3";
+    if (editor?.isActive("blockquote")) return "quote";
+    if (editor?.isActive("codeBlock")) return "code";
+    return "text";
+  }
+
+  /** 块样式切换：标题/引用/代码块互斥切换，其余回落正文 */
+  function applyBlockType(v: string) {
+    const chain = editor?.chain().focus();
+    if (!chain) return;
+    if (v === "h1") chain.toggleHeading({ level: 1 }).run();
+    else if (v === "h2") chain.toggleHeading({ level: 2 }).run();
+    else if (v === "h3") chain.toggleHeading({ level: 3 }).run();
+    else if (v === "quote") chain.toggleBlockquote().run();
+    else if (v === "code") chain.toggleCodeBlock().run();
+    else chain.setParagraph().run();
+  }
+
+  /** 列表缩进：普通列表用 listItem、待办用 taskItem（两者是不同节点类型） */
+  function runIndent(dir: 1 | -1) {
+    if (!editor) return;
+    const itemType = editor.isActive("taskList") ? "taskItem" : "listItem";
+    if (dir === 1) editor.chain().focus().sinkListItem(itemType).run();
+    else editor.chain().focus().liftListItem(itemType).run();
+  }
+
+  /** 对齐切换：再次点击当前对齐 = 恢复默认（unset），与文字处理的开关观感一致 */
+  function toggleAlign(a: "left" | "center" | "right") {
+    if (editor?.isActive({ textAlign: a })) editor.chain().focus().unsetTextAlign().run();
+    else editor?.chain().focus().setTextAlign(a).run();
+  }
+
+  /** 字号应用：空值 = 恢复默认字号 */
+  function applyFontSize(v: string) {
+    if (v) editor?.chain().focus().setFontSize(v).run();
+    else editor?.chain().focus().unsetFontSize().run();
+  }
+
+  /** 清除格式：块归一为正文 + 去掉全部内联样式（tiptap 标准组合） */
+  function clearFormatting() {
+    editor?.chain().focus().clearNodes().unsetAllMarks().run();
+  }
+
   /** 取色浮层回调：选中色板条目写入对应 mark；null = 清除颜色 */
   function pickColor(entry: { value: string } | null) {
     const mode = palette?.mode;
@@ -429,6 +482,35 @@ export function DocPageEditor({ file }: DocPageEditorProps) {
     { id: "code", label: "</>", title: t("suiteTbCode"), cls: "is-code", active: editor?.isActive("code") ?? false, run: () => editor?.chain().focus().toggleCode().run() },
   ];
 
+  /** 列表三态按钮（固定工具栏）：图标 + 激活态（bullet/ordered/task） */
+  const listBtns = [
+    {
+      id: "bullet",
+      icon: "list",
+      labelKey: "suiteBlockBullet",
+      active: editor?.isActive("bulletList") ?? false,
+      run: () => editor?.chain().focus().toggleBulletList().run(),
+    },
+    {
+      id: "ordered",
+      icon: "listOrdered",
+      labelKey: "suiteBlockOrdered",
+      active: editor?.isActive("orderedList") ?? false,
+      run: () => editor?.chain().focus().toggleOrderedList().run(),
+    },
+    {
+      id: "task",
+      icon: "listTodo",
+      labelKey: "suiteBlockTask",
+      active: editor?.isActive("taskList") ?? false,
+      run: () => editor?.chain().focus().toggleTaskList().run(),
+    },
+  ] as const;
+
+  // 缩进可用性：普通列表与待办列表是不同节点类型，两种都探测
+  const canIndent = !!editor && (editor.can().sinkListItem("listItem") || editor.can().sinkListItem("taskItem"));
+  const canOutdent = !!editor && (editor.can().liftListItem("listItem") || editor.can().liftListItem("taskItem"));
+
   const blockMenuItems: readonly { key: string; label: string; run: () => void }[] = [
     { key: "up", label: t("suiteBlockUp"), run: () => blockMenu && moveBlock(blockMenu.start, -1) },
     { key: "down", label: t("suiteBlockDown"), run: () => blockMenu && moveBlock(blockMenu.start, 1) },
@@ -447,31 +529,204 @@ export function DocPageEditor({ file }: DocPageEditorProps) {
           {statusText} · {t("suiteWordCount", { n: charCount })}
         </span>
         <div className="doc-page__actions">
-          <button
-            type="button"
-            className="suite-toolbar__btn"
-            title={t("suiteTbUndo")}
-            aria-label={t("suiteTbUndo")}
-            onClick={() => editor?.chain().focus().undo().run()}
-            disabled={!editor?.can().undo()}
-          >
-            <Icon name="back" size={15} />
-          </button>
-          <button
-            type="button"
-            className="suite-toolbar__btn suite-toolbar__btn--flip"
-            title={t("suiteTbRedo")}
-            aria-label={t("suiteTbRedo")}
-            onClick={() => editor?.chain().focus().redo().run()}
-            disabled={!editor?.can().redo()}
-          >
-            <Icon name="back" size={15} />
-          </button>
           <button type="button" className="btn" onClick={exportMd}>
             <Icon name="download" size={14} />
             {t("suiteExportMd")}
           </button>
         </div>
+      </div>
+
+      {/* 固定格式工具栏：常驻内容上方（在滚动容器外，滚动不消失）。
+          mousedown 阻止默认保住编辑器选区，下拉控件单独放行原生交互 */}
+      <div
+        className="doc-toolbar"
+        role="toolbar"
+        aria-label={t("suiteDocToolbar")}
+        onMouseDown={(e) => e.preventDefault()}
+      >
+        <button
+          type="button"
+          className="suite-toolbar__btn"
+          title={t("suiteTbUndo")}
+          aria-label={t("suiteTbUndo")}
+          onClick={() => editor?.chain().focus().undo().run()}
+          disabled={!editor?.can().undo()}
+        >
+          <Icon name="undo" size={15} />
+        </button>
+        <button
+          type="button"
+          className="suite-toolbar__btn"
+          title={t("suiteTbRedo")}
+          aria-label={t("suiteTbRedo")}
+          onClick={() => editor?.chain().focus().redo().run()}
+          disabled={!editor?.can().redo()}
+        >
+          <Icon name="redo" size={15} />
+        </button>
+        <span className="suite-toolbar__divider" aria-hidden />
+        <select
+          className="suite-toolbar__select"
+          value={currentBlockType()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onChange={(e) => applyBlockType(e.target.value)}
+          title={t("suiteTbBlockType")}
+          aria-label={t("suiteTbBlockType")}
+        >
+          <option value="text">{t("suiteBlockText")}</option>
+          <option value="h1">{t("suiteBlockHeading1")}</option>
+          <option value="h2">{t("suiteBlockHeading2")}</option>
+          <option value="h3">{t("suiteBlockHeading3")}</option>
+          <option value="quote">{t("suiteBlockQuote")}</option>
+          <option value="code">{t("suiteBlockCode")}</option>
+        </select>
+        <span className="suite-toolbar__divider" aria-hidden />
+        {markBtns.map((b) => (
+          <button
+            key={b.id}
+            type="button"
+            className={`suite-toolbar__btn ${b.cls}${b.active ? " is-active" : ""}`}
+            title={b.title}
+            aria-label={b.title}
+            aria-pressed={b.active}
+            onClick={b.run}
+          >
+            {b.label}
+          </button>
+        ))}
+        <span className="suite-toolbar__divider" aria-hidden />
+        <select
+          className="suite-toolbar__select"
+          value={(editor?.getAttributes("textStyle").fontSize as string | undefined) ?? ""}
+          onMouseDown={(e) => e.stopPropagation()}
+          onChange={(e) => applyFontSize(e.target.value)}
+          title={t("suiteFontSize")}
+          aria-label={t("suiteFontSize")}
+        >
+          {FONT_SIZES.map((s) => (
+            <option key={s || "default"} value={s}>
+              {s || t("suiteFontSizeDefault")}
+            </option>
+          ))}
+        </select>
+        {(["text", "fill", "highlight"] as const).map((mode) => (
+          <button
+            key={mode}
+            type="button"
+            className={`suite-toolbar__btn is-color${palette?.mode === mode ? " is-active" : ""}`}
+            title={mode === "text" ? t("suiteColorText") : mode === "fill" ? t("suiteColorBg") : t("suiteTbHighlight")}
+            aria-label={mode === "text" ? t("suiteColorText") : mode === "fill" ? t("suiteColorBg") : t("suiteTbHighlight")}
+            aria-pressed={palette?.mode === mode}
+            aria-haspopup="menu"
+            onClick={(e) => {
+              if (palette?.mode === mode) {
+                setPalette(null);
+                return;
+              }
+              const rect = e.currentTarget.getBoundingClientRect();
+              setPalette({ mode, x: rect.left, y: rect.bottom + 6 });
+            }}
+          >
+            {mode === "highlight" ? (
+              <Icon name="highlighter" size={15} />
+            ) : (
+              <span className="doc-color-glyph" aria-hidden>
+                A
+                <span className="doc-color-glyph__bar" data-mode={mode} />
+              </span>
+            )}
+          </button>
+        ))}
+        <span className="suite-toolbar__divider" aria-hidden />
+        {listBtns.map((it) => (
+          <button
+            key={it.id}
+            type="button"
+            className={`suite-toolbar__btn${it.active ? " is-active" : ""}`}
+            title={t(it.labelKey)}
+            aria-label={t(it.labelKey)}
+            aria-pressed={it.active}
+            onClick={it.run}
+          >
+            <Icon name={it.icon} size={15} />
+          </button>
+        ))}
+        <button
+          type="button"
+          className="suite-toolbar__btn"
+          title={t("suiteTbOutdent")}
+          aria-label={t("suiteTbOutdent")}
+          onClick={() => runIndent(-1)}
+          disabled={!canOutdent}
+        >
+          <Icon name="outdent" size={15} />
+        </button>
+        <button
+          type="button"
+          className="suite-toolbar__btn"
+          title={t("suiteTbIndent")}
+          aria-label={t("suiteTbIndent")}
+          onClick={() => runIndent(1)}
+          disabled={!canIndent}
+        >
+          <Icon name="indent" size={15} />
+        </button>
+        <span className="suite-toolbar__divider" aria-hidden />
+        {(["left", "center", "right"] as const).map((a) => (
+          <button
+            key={a}
+            type="button"
+            className={`suite-toolbar__btn${editor?.isActive({ textAlign: a }) ? " is-active" : ""}`}
+            title={t(alignKey(a))}
+            aria-label={t(alignKey(a))}
+            aria-pressed={editor?.isActive({ textAlign: a }) ?? false}
+            onClick={() => toggleAlign(a)}
+          >
+            <span className="doc-align-glyph" data-align={a} aria-hidden />
+          </button>
+        ))}
+        <span className="suite-toolbar__divider" aria-hidden />
+        <button
+          type="button"
+          className={`suite-toolbar__btn${editor?.isActive("link") ? " is-active" : ""}`}
+          title={t("suiteTbLink")}
+          aria-label={t("suiteTbLink")}
+          aria-pressed={editor?.isActive("link") ?? false}
+          onClick={(e) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            openLinkEditorAt(rect.left + rect.width / 2, rect.bottom + 6);
+          }}
+        >
+          <Icon name="link" size={15} />
+        </button>
+        <button
+          type="button"
+          className="suite-toolbar__btn"
+          title={t("suiteBlockTable")}
+          aria-label={t("suiteBlockTable")}
+          onClick={() => editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
+        >
+          <Icon name="table" size={15} />
+        </button>
+        <button
+          type="button"
+          className="suite-toolbar__btn"
+          title={t("suiteBlockDivider")}
+          aria-label={t("suiteBlockDivider")}
+          onClick={() => editor?.chain().focus().setHorizontalRule().run()}
+        >
+          <Icon name="divider" size={15} />
+        </button>
+        <span className="suite-toolbar__divider" aria-hidden />
+        <button
+          type="button"
+          className="suite-toolbar__btn"
+          title={t("suiteTbClearFormat")}
+          aria-label={t("suiteTbClearFormat")}
+          onClick={clearFormatting}
+        >
+          <Icon name="eraser" size={15} />
+        </button>
       </div>
 
       <div className="suite-doc__scroll">
@@ -574,11 +829,7 @@ export function DocPageEditor({ file }: DocPageEditorProps) {
             className="doc-float-bar__size"
             value={(editor?.getAttributes("textStyle").fontSize as string | undefined) ?? ""}
             onMouseDown={(e) => e.stopPropagation()}
-            onChange={(e) => {
-              const v = e.target.value;
-              if (v) editor?.chain().focus().setFontSize(v).run();
-              else editor?.chain().focus().unsetFontSize().run();
-            }}
+            onChange={(e) => applyFontSize(e.target.value)}
             title={t("suiteFontSize")}
             aria-label={t("suiteFontSize")}
           >
@@ -594,14 +845,10 @@ export function DocPageEditor({ file }: DocPageEditorProps) {
               key={a}
               type="button"
               className={`suite-toolbar__btn${editor?.isActive({ textAlign: a }) ? " is-active" : ""}`}
-              title={t(a === "left" ? "suiteAlignLeft" : a === "center" ? "suiteAlignCenter" : "suiteAlignRight")}
-              aria-label={t(a === "left" ? "suiteAlignLeft" : a === "center" ? "suiteAlignCenter" : "suiteAlignRight")}
+              title={t(alignKey(a))}
+              aria-label={t(alignKey(a))}
               aria-pressed={editor?.isActive({ textAlign: a }) ?? false}
-              onClick={() => {
-                // 再次点击当前对齐 = 恢复默认（unset），与文字处理的开关观感一致
-                if (editor?.isActive({ textAlign: a })) editor.chain().focus().unsetTextAlign().run();
-                else editor?.chain().focus().setTextAlign(a).run();
-              }}
+              onClick={() => toggleAlign(a)}
             >
               <span className="doc-align-glyph" data-align={a} aria-hidden />
             </button>
@@ -622,7 +869,7 @@ export function DocPageEditor({ file }: DocPageEditorProps) {
               }}
             >
               {mode === "highlight" ? (
-                <span aria-hidden>🖍</span>
+                <Icon name="highlighter" size={15} />
               ) : (
                 <span className="doc-color-glyph" aria-hidden>
                   A
@@ -640,7 +887,7 @@ export function DocPageEditor({ file }: DocPageEditorProps) {
             aria-pressed={editor?.isActive("link") ?? false}
             onClick={() => openLinkEditorAt(floatBar.x, floatBar.y + 42)}
           >
-            <span aria-hidden>🔗</span>
+            <Icon name="link" size={15} />
           </button>
         </div>
       )}

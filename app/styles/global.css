@@ -6700,13 +6700,31 @@ select.input {
   transform: scaleX(-1);
 }
 
-/* ---------- 飞书式文档：顶栏动作组 / 划选浮动工具栏 / 块把手 ---------- */
+/* ---------- 飞书式文档：顶栏动作组 / 固定格式工具栏 / 划选浮动工具栏 / 块把手 ---------- */
 .doc-page__actions {
   display: flex;
   flex: none;
   align-items: center;
   gap: var(--space-1);
   margin-left: auto;
+}
+
+/* 固定格式工具栏：常驻内容上方（在滚动容器之外，滚动不消失），窄屏自动换行不溢出 */
+.doc-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+/* 下拉与两侧按钮组留出呼吸间距（容器 gap 仅 2px，select 视觉上更宽） */
+.doc-toolbar .suite-toolbar__select {
+  margin: 0 2px;
 }
 
 /* 画布内大标题（覆盖顶栏版小标题的紧凑版式） */

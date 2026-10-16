@@ -740,6 +740,12 @@ export const zhCN = {
   sheetTabMenuDelete: "删除工作表",
   sheetTabCopySuffix: " 副本",
   sheetNameBoxJump: "输入 A1 或 A1:B3 后回车跳转",
+  // ----- 文档固定格式工具栏（第五期） -----
+  suiteDocToolbar: "文档格式工具栏",
+  suiteTbBlockType: "块样式",
+  suiteTbIndent: "增加缩进",
+  suiteTbOutdent: "减少缩进",
+  suiteTbClearFormat: "清除格式",
 } as const;
 
 export type Dict = Record<keyof typeof zhCN, string>;

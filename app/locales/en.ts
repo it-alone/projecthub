@@ -742,4 +742,10 @@ export const en: Dict = {
   sheetTabMenuDelete: "Delete sheet",
   sheetTabCopySuffix: " copy",
   sheetNameBoxJump: "Type A1 or A1:B3 and press Enter to jump",
+  // ----- Fixed doc formatting toolbar (phase 5) -----
+  suiteDocToolbar: "Document formatting toolbar",
+  suiteTbBlockType: "Block style",
+  suiteTbIndent: "Increase indent",
+  suiteTbOutdent: "Decrease indent",
+  suiteTbClearFormat: "Clear formatting",
 };
