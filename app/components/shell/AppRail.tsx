@@ -24,6 +24,7 @@ export function AppRail({ onSearch }: { onSearch: () => void }) {
       <button className="rail__brand" onClick={() => navigate("/")} aria-label="ProjectHub">
         <Icon name="brand" size={18} />
       </button>
+      <span className="rail__divider" aria-hidden="true" />
       {item({ to: "/", icon: "home", label: t("workbench") })}
       {item({ to: "/projects", icon: "kanban", label: t("projects") })}
       {item({ to: "/flows", icon: "workflow", label: t("flowsMenu") })}
@@ -32,6 +33,7 @@ export function AppRail({ onSearch }: { onSearch: () => void }) {
       {item({ to: "/simulator", icon: "idcard", label: t("simulatorMenu") })}
       {item({ to: "/users", icon: "user", label: t("usersMenu") })}
       <span className="rail__spacer" />
+      <span className="rail__divider" aria-hidden="true" />
       <button
         className="rail__item"
         onClick={onSearch}

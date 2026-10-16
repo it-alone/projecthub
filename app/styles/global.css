@@ -2586,27 +2586,45 @@ select.input {
 
 .rail__brand {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 36px; height: 36px; margin-bottom: var(--space-2);
+  width: 36px; height: 36px;
   border: 0; border-radius: var(--radius-md); cursor: pointer;
   background: var(--color-rail-fg-strong); color: var(--color-rail-on-strong);
   transition: transform var(--transition), opacity var(--transition);
 }
 .rail__brand:hover { opacity: 0.85; }
+.rail__brand:active { transform: scale(0.94); }
+
+/* 品牌键与主导航、主导航与底部工具之间的分组线 */
+.rail__divider {
+  width: 24px; height: 1px; margin: var(--space-2) 0;
+  background: var(--color-rail-border);
+}
 
 .rail__item {
   position: relative; display: inline-flex; align-items: center; justify-content: center;
-  width: 40px; height: 40px; border: 0; border-radius: var(--radius-md);
+  width: 40px; height: 40px; border: 0; border-radius: var(--radius-lg);
   background: none; color: var(--color-rail-fg); cursor: pointer; text-decoration: none;
   transition: background var(--transition), color var(--transition);
 }
 .rail__item:hover { background: var(--color-rail-hover); color: var(--color-rail-fg-strong); }
-.rail__item.is-active { background: var(--color-rail-fg-strong); color: var(--color-rail-on-strong); }
+
+/* 激活态：柔和高亮底 + 贴栏左缘的指示条（比整块反白更轻，不与品牌键抢视觉） */
+.rail__item.is-active { background: var(--color-rail-active); color: var(--color-rail-fg-strong); }
+
+.rail__item.is-active::before {
+  content: ""; position: absolute; left: -8px; top: 50%; transform: translateY(-50%);
+  width: var(--space-1); height: 20px; border-radius: var(--radius-full);
+  background: var(--color-rail-accent);
+}
+
+/* 恒深色面上白环比全局 --color-primary 更醒目（浅色主题下主色对深底偏暗） */
+.rail__item:focus-visible, .rail__brand:focus-visible { outline-color: var(--color-rail-fg-strong); }
 
 .rail__badge {
   position: absolute; top: 5px; right: 5px;
   min-width: 16px; height: 16px; padding: 0 var(--space-1);
   display: inline-flex; align-items: center; justify-content: center;
-  border-radius: var(--radius-full); background: var(--color-accent); color: var(--color-primary-contrast);
+  border-radius: var(--radius-full); background: var(--color-rail-accent); color: var(--color-rail-on-strong);
   font-size: 10px; font-weight: 700; line-height: 1;
 }
 .rail__spacer { flex: 1; }
@@ -2688,7 +2706,7 @@ select.input {
   background: none; cursor: pointer;
   transition: border-color var(--transition);
 }
-.user-card__trigger:hover { border-color: var(--color-rail-hover); }
+.user-card__trigger:hover { border-color: var(--color-rail-active); }
 .user-card__trigger.is-open { border-color: var(--color-rail-fg-strong); }
 .user-card__trigger .avatar { width: 28px; height: 28px; font-size: 12px; }
 

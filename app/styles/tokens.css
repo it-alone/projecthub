@@ -51,6 +51,9 @@
   /* ----- 左侧图标栏（Rail，双主题下恒为深色） ----- */
   --color-rail-bg: #1c1c1e;
   --color-rail-hover: #2c2c2e;
+  --color-rail-active: #37373d;   /* 激活项的柔和高亮底 */
+  --color-rail-accent: #818cf8;   /* 激活指示条 / 徽标（恒深色面用靛蓝亮档） */
+  --color-rail-border: #313135;   /* 分组分隔线 */
   --color-rail-fg: #a1a1aa;
   --color-rail-fg-strong: #fafafa;
   --color-rail-on-strong: #171717;

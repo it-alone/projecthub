@@ -41,9 +41,9 @@ export type IconName =
 const PATHS: Record<IconName, React.ReactNode> = {
   kanban: (
     <>
-      <path d="M6 5v11" />
-      <path d="M12 5v6" />
-      <path d="M18 5v14" />
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <path d="M8.5 17.5V7" />
+      <path d="M15.5 12.5V7" />
     </>
   ),
   cornerDownRight: (
@@ -102,9 +102,11 @@ const PATHS: Record<IconName, React.ReactNode> = {
   ),
   brand: (
     <>
-      <path d="M4 5v14" />
-      <path d="M9 5v9" />
-      <path d="M14 5v6" />
+      <rect x="9" y="2.5" width="6" height="6" rx="1.5" />
+      <rect x="2.5" y="15.5" width="6" height="6" rx="1.5" />
+      <rect x="15.5" y="15.5" width="6" height="6" rx="1.5" />
+      <path d="M12 8.5v4" />
+      <path d="M5.5 15.5v-2a1 1 0 0 1 1-1h11a1 1 0 0 1 1 1v2" />
     </>
   ),
   calendar: (
@@ -142,8 +144,8 @@ const PATHS: Record<IconName, React.ReactNode> = {
   ),
   home: (
     <>
-      <path d="m3 10 9-7 9 7" />
-      <path d="M5 9v11h14V9" />
+      <path d="m3 9.5 9-7 9 7V20a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+      <path d="M9 22v-8h6v8" />
     </>
   ),
   trash: (
@@ -247,11 +249,10 @@ const PATHS: Record<IconName, React.ReactNode> = {
   ),
   markdown: (
     <>
-      <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
-      <path d="M14 2v4a2 2 0 0 0 2 2h4" />
-      <path d="M10 9H8" />
-      <path d="M16 13H8" />
-      <path d="M16 17H8" />
+      <rect x="2" y="6" width="20" height="12" rx="2" />
+      <path d="M5.5 15.5V9l3.25 3.25L12 9v6.5" />
+      <path d="M16.5 10v4.5" />
+      <path d="m14.5 12.5 2 2 2-2" />
     </>
   ),
   fileText: (
