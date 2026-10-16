@@ -11,6 +11,8 @@ import { isOverdue } from "~/lib/date";
 
 export interface TaskCardProps {
   task: Task;
+  /** 父任务同列时为 true：组内子卡缩进展示（独立子卡不缩进，仅显示父标识） */
+  inGroup?: boolean;
   assigneeName: string | null;
   /** 父任务标题（子任务卡片标识用，顶层任务为 null） */
   parentTitle: string | null;
@@ -28,7 +30,7 @@ function isSameDay(a: Date, b: Date): boolean {
     && a.getDate() === b.getDate();
 }
 
-export function TaskCard({ task, assigneeName, parentTitle, subProgress, labels, canToggle, onOpen, onToggleDone }: TaskCardProps) {
+export function TaskCard({ task, inGroup = false, assigneeName, parentTitle, subProgress, labels, canToggle, onOpen, onToggleDone }: TaskCardProps) {
   const { locale } = useI18n();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: task.id, data: { type: "task", status: task.status } });
@@ -49,7 +51,7 @@ export function TaskCard({ task, assigneeName, parentTitle, subProgress, labels,
   return (
     <div
       ref={setNodeRef}
-      className={`task-card${isDragging ? " is-dragging" : ""}`}
+      className={`task-card${inGroup ? " task-card--child" : ""}${isDragging ? " is-dragging" : ""}`}
       style={{
         transform: CSS.Transform.toString(transform),
         transition,

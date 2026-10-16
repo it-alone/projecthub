@@ -224,6 +224,8 @@ export const zhCN = {
   addTaskInAria: "在「{column}」列添加任务",
   cardAria: "任务：{title}，优先级{priority}，点击查看详情",
   movedAnnounce: "已将「{title}」移动到「{column}」列",
+  movedGroupAnnounce: "已将「{title}」及 {count} 个子任务移动到「{column}」列",
+  dragWithSubs: "含 {count} 个子任务",
   weekDone: "本周完成",
   openCount: "未完成",
   taskCountLabel: "{count} 个任务",

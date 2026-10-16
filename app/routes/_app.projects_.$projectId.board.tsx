@@ -73,10 +73,13 @@ export default function BoardRoute() {
       toast.error(t("noPermission"));
       return;
     }
-    // 乐观更新：本地先移动，失败则由 liveQuery 回读
+    // 乐观更新：本地先整组移动（父任务级联子任务同列），失败则由 liveQuery 回读
+    const childIds = new Set(
+      tasks.filter((t) => t.parentId === intent.taskId).map((t) => t.id),
+    );
     setTasks((prev) =>
       prev.map((t) =>
-        t.id === intent.taskId ? { ...t, status: intent.targetStatus } : t,
+        t.id === intent.taskId || childIds.has(t.id) ? { ...t, status: intent.targetStatus } : t,
       ),
     );
     const moved = tasks.find((t) => t.id === intent.taskId);

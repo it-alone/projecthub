@@ -226,6 +226,8 @@ export const en: Dict = {
   addTaskInAria: "Add a task in \"{column}\"",
   cardAria: "Task: {title}, priority {priority}, click to open",
   movedAnnounce: "Moved \"{title}\" to {column}",
+  movedGroupAnnounce: "Moved \"{title}\" with {count} subtasks to {column}",
+  dragWithSubs: "{count} subtasks",
   weekDone: "Done this week",
   openCount: "Open",
   taskCountLabel: "{count} tasks",

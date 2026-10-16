@@ -148,4 +148,56 @@ describe("子任务（父子任务）", () => {
     expect(parentRow?.completedAt).toBeNull();
     expect(parentRow?.status).toBe(COL_TODO);
   });
+
+  it("看板拖动父任务：子任务整组跟随换列且保留组内顺序", async () => {
+    const parent = await makeTask({ status: COL_TODO });
+    const c1 = await taskService.createSubtask("u1", parent.id, { title: "子 1" });
+    const c2 = await taskService.createSubtask("u1", parent.id, { title: "子 2" });
+    // 子任务先被单独拖到其他列，父任务移动时也应被拉回父任务所在列
+    await taskService.moveTask("u1", c1.id, COL_DOING, null, null);
+    // 级联前各子任务的当前 order（c1 已因自身移动重算过）
+    const before: string[] = [];
+    for (const c of [c1, c2]) before.push((await db.tasks.get(c.id))!.order);
+
+    await taskService.moveTask("u1", parent.id, COL_DONE, null, null);
+
+    expect((await db.tasks.get(parent.id))?.status).toBe(COL_DONE);
+    for (const [i, c] of [c1, c2].entries()) {
+      const row = await db.tasks.get(c.id);
+      expect(row?.status).toBe(COL_DONE);
+      expect(row?.order).toBe(before[i]); // order 保留 = 组内相对顺序不变
+    }
+  });
+
+  it("看板拖动父任务进完成列：仅父任务记 completedAt，子任务完成态独立", async () => {
+    const parent = await makeTask({ status: COL_TODO });
+    const child = await taskService.createSubtask("u1", parent.id, { title: "子 1" });
+
+    await taskService.moveTask("u1", parent.id, COL_DONE, null, null);
+
+    expect((await db.tasks.get(parent.id))?.completedAt).toBeTruthy();
+    expect((await db.tasks.get(child.id))?.completedAt).toBeNull();
+  });
+
+  it("看板拖动子任务：父任务不动", async () => {
+    const parent = await makeTask({ status: COL_TODO });
+    const child = await taskService.createSubtask("u1", parent.id, { title: "子 1" });
+
+    await taskService.moveTask("u1", child.id, COL_DOING, null, null);
+
+    expect((await db.tasks.get(child.id))?.status).toBe(COL_DOING);
+    expect((await db.tasks.get(parent.id))?.status).toBe(COL_TODO);
+  });
+
+  it("看板拖动父任务：已软删的子任务不跟随", async () => {
+    const parent = await makeTask({ status: COL_TODO });
+    const child = await taskService.createSubtask("u1", parent.id, { title: "子 1" });
+    await trashService.deleteTask("u1", child.id);
+
+    await taskService.moveTask("u1", parent.id, COL_DOING, null, null);
+
+    const row = await db.tasks.get(child.id);
+    expect(row?.status).toBe(COL_TODO);
+    expect(row?.deletedAt).toBeTruthy();
+  });
 });

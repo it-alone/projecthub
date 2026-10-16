@@ -13,7 +13,10 @@ import { TaskCard } from "./TaskCard";
 
 export interface ColumnProps {
   column: StatusColumn;
+  /** 列内展示序列：父卡后紧跟其子卡（分组排序由 Board 计算） */
   tasks: Task[];
+  /** taskId → 所属父锚点 id（组内子卡才有；用于子卡缩进标识） */
+  anchorIdOf: Record<string, string>;
   assigneeNames: Record<string, string>;
   /** taskId → 标题（子卡展示父任务标识用） */
   parentTitles: Record<string, string>;
@@ -31,7 +34,7 @@ export interface ColumnProps {
 
 /** 看板列：色点列头 + 计数 + 完成进度条 + 列内快捷创建（支持模板） */
 export function Column({
-  column, tasks, assigneeNames, parentTitles, subProgress, labels, templates, canCreate, canToggle, onOpenTask, onToggleDone, onCreate, onCreateFromTemplate,
+  column, tasks, anchorIdOf, assigneeNames, parentTitles, subProgress, labels, templates, canCreate, canToggle, onOpenTask, onToggleDone, onCreate, onCreateFromTemplate,
 }: ColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: `column:${column.id}`,
@@ -82,6 +85,7 @@ export function Column({
             <TaskCard
               key={task.id}
               task={task}
+              inGroup={anchorIdOf[task.id] !== undefined && anchorIdOf[task.id] !== task.id}
               assigneeName={task.assigneeId ? assigneeNames[task.assigneeId] ?? null : null}
               parentTitle={task.parentId ? parentTitles[task.parentId] ?? null : null}
               subProgress={subProgress[task.id] ?? null}

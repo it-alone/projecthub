@@ -152,6 +152,18 @@ export const taskService = {
     const project = await db.projects.get(original.projectId);
     const targetColumn = project?.statusColumns.find((c) => c.id === targetStatus);
     const task = await taskRepository.move(taskId, targetStatus, prevOrder, nextOrder);
+    // 父任务整组移动：未软删的子任务全部跟随到目标列。只换列不改 order——
+    // 看板按「父分组」渲染，子卡 order 仅决定组内顺序，保留即维持相对顺序；
+    // 完成勾选与自动化也只对被拖任务生效，子任务完成态仍独立维护
+    const children = (await db.tasks.where("parentId").equals(taskId).toArray())
+      .filter((c) => c.deletedAt === null && c.status !== targetStatus);
+    if (children.length > 0) {
+      await db.transaction("rw", db.tasks, async () => {
+        for (const child of children) {
+          await taskRepository.update(child.id, { status: targetStatus }, child.version);
+        }
+      });
+    }
     // 状态自动流转：落入「完成列」记录 completedAt，离开则清除
     let result = task;
     if (targetColumn?.isDone && !task.completedAt) {
