@@ -6604,40 +6604,140 @@ select.input {
    ============================================================ */
 
 /* ---------- 我的空间：文件列表 ---------- */
-.suite-search {
-  width: 220px;
+
+/* 顶部类型筛选（分段控件）：与搜索框、新建按钮并列 */
+.suite-filter {
+  flex: none;
 }
 
+/* 搜索框：图标内嵌，聚焦时整框高亮 */
+.suite-search {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 36px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.suite-search:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-soft);
+}
+
+.suite-search__input {
+  width: 190px;
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 13px;
+  color: var(--color-text);
+  outline: none;
+}
+
+.suite-search__input::placeholder {
+  color: var(--color-text-muted);
+}
+
+/* 空态：虚线卡片承载图标 + 主次文案 + 新建入口 */
 .suite-empty {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-6) 0;
-  color: var(--color-text-muted);
-  font-size: 13px;
+  gap: var(--space-1);
+  margin-top: var(--space-5);
+  padding: var(--space-6) var(--space-4);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-lg);
 }
 
+.suite-empty__icon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+}
+
+.suite-empty__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.suite-empty__hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.suite-empty__actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+/* 时间分组：标签 + 计数徽标，组间距拉开层次 */
+.suite-group + .suite-group {
+  margin-top: var(--space-5);
+}
+
+.suite-group__label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 var(--space-1) var(--space-3);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--color-text-muted);
+}
+
+.suite-group__count {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-muted);
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+/* 行列表：无边框容器，改为悬浮高亮的圆角行，轻量现代 */
 .suite-list {
   list-style: none;
   margin: 0;
   padding: 0;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .suite-row {
   display: flex;
   align-items: center;
+  border-radius: var(--radius-md);
+  transition: background var(--motion-fast);
 }
 
-.suite-row + .suite-row {
-  border-top: 1px solid var(--color-border);
-}
-
-.suite-row:hover {
+.suite-row:hover,
+.suite-row:focus-within {
   background: var(--color-surface-muted);
 }
 
@@ -6647,8 +6747,9 @@ select.input {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-2) var(--space-4);
+  padding: var(--space-2) var(--space-3);
   border: 0;
+  border-radius: var(--radius-md);
   background: none;
   text-align: left;
   cursor: pointer;
@@ -6662,8 +6763,8 @@ select.input {
 
 .suite-row__icon {
   flex: none;
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -6702,34 +6803,69 @@ select.input {
   white-space: nowrap;
 }
 
+/* 类型徽标：按类型着色的软底胶囊（无边框） */
 .suite-row__kind {
   flex: none;
   margin-left: var(--space-3);
-  padding: 1px 8px;
-  border: 1px solid var(--color-border);
+  padding: 2px 8px;
   border-radius: var(--radius-full);
   font-size: 11px;
-  color: var(--color-text-secondary);
+  font-weight: 500;
+  background: var(--color-primary-soft);
+  color: var(--color-primary-strong);
+}
+
+.suite-row__kind--sheet {
+  background: var(--color-success-soft);
+  color: var(--color-success);
 }
 
 .suite-row__time {
   flex: none;
-  width: 110px;
+  width: 128px;
   text-align: right;
   font-size: 12px;
+  font-variant-numeric: tabular-nums;
   color: var(--color-text-muted);
 }
 
+/* 操作区固定占位，悬停/聚焦渐显：不隐藏占位（可键盘聚焦）也不引起布局跳动 */
 .suite-row__actions {
   flex: none;
-  display: none;
+  display: flex;
+  justify-content: flex-end;
   gap: 2px;
-  padding-right: var(--space-3);
+  width: 96px;
+  padding-right: var(--space-2);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion-fast);
 }
 
 .suite-row:hover .suite-row__actions,
 .suite-row:focus-within .suite-row__actions {
-  display: flex;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* 触屏无悬停：操作常显，避免不可达 */
+@media (hover: none) {
+  .suite-row__actions {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+/* 窄屏收敛次要信息，保标题与操作 */
+@media (width <= 720px) {
+  .suite-row__kind,
+  .suite-row__meta {
+    display: none;
+  }
+
+  .suite-search__input {
+    width: 130px;
+  }
 }
 
 /* ---------- 编辑器骨架：标题输入 + 块工具栏 ---------- */
@@ -6941,6 +7077,7 @@ select.input {
   position: fixed;
   z-index: 80;
   display: flex;
+  align-items: center;
   gap: 2px;
   padding: 4px;
   border: 1px solid var(--color-border);
