@@ -47,11 +47,11 @@ export interface DocPageEditorProps {
 }
 
 /**
- * 飞书式富文本文档编辑器：顶部轻量栏（保存状态 + 导出）+
+ * 飞书式富文本文档编辑器：顶部轻量栏（标题 + 保存状态 + 导出）+
  * 固定格式工具栏（内容上方常驻：块样式/内联样式/列表/对齐/插入）+
  * 划选浮动格式工具栏 + 块悬浮把手（上移/下移/复制/删除）+ "/" 斜杠菜单。
- * 标题在画布内、与正文同版式；草稿只在 tiptap 实例里，600ms 无输入才落库，
- * 卸载时兜底保存防丢最后一段输入。
+ * 文件名在顶栏（内容块上方），正文首行默认为内容标题 H1 并跟随改名；
+ * 草稿只在 tiptap 实例里，600ms 无输入才落库，卸载时兜底保存防丢最后一段输入。
  */
 export function DocPageEditor({ file }: DocPageEditorProps) {
   const { t } = useI18n();
@@ -455,11 +455,25 @@ export function DocPageEditor({ file }: DocPageEditorProps) {
     }
     void docFileService
       .rename(file.id, trimmed)
-      .then(() => toast.success(t("saved")))
+      .then(() => {
+        syncFirstHeading(trimmed, file.title);
+        toast.success(t("saved"));
+      })
       .catch((e: unknown) => {
         toast.error(e instanceof Error ? e.message : t("updateFailed"));
         setTitle(file.title);
       });
+  }
+
+  /** 改名后默认把正文首行 H1 同步为新标题：首行为空或仍是旧标题时才跟随，用户自拟后不再改写 */
+  function syncFirstHeading(newTitle: string, oldTitle: string) {
+    if (!editor) return;
+    const first = editor.state.doc.firstChild;
+    if (!first || first.type.name !== "heading" || Number(first.attrs.level ?? 0) !== 1) return;
+    const text = first.textContent;
+    if (text === newTitle || (text && text !== oldTitle)) return;
+    // insertText 走纯文本替换（insertContent 会把字符串当 HTML 解析，标题含 < > 时会被吞掉）
+    editor.view.dispatch(editor.state.tr.insertText(newTitle, 1, 1 + first.content.size));
   }
 
   function exportMd() {
@@ -471,7 +485,8 @@ export function DocPageEditor({ file }: DocPageEditorProps) {
   const statusText =
     saveState === "saving" ? t("suiteSaveSaving") : saveState === "error" ? t("suiteSaveFailed") : t("suiteSaveSaved");
   const charCount = editor?.getText().length ?? 0;
-  const isEmpty = (editor?.isEmpty ?? false) && !title.trim();
+  // 文件名在顶栏，空态只看正文（新建文档首行自带 H1 标题，通常不触发）
+  const isEmpty = editor?.isEmpty ?? false;
 
   type MarkBtn = { id: string; label: string; title: string; cls: string; active: boolean; run: () => void };
   const markBtns: MarkBtn[] = [
@@ -525,6 +540,26 @@ export function DocPageEditor({ file }: DocPageEditorProps) {
           <Icon name="back" size={15} />
           {t("docsMenu")}
         </button>
+        {/* 文件名在内容块上方（与表格编辑器同款顶栏标题位）；正文首行另有 H1 内容标题 */}
+        <input
+          className="suite-doc__title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onBlur={commitTitle}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              commitTitle();
+              // 回车落到正文首行（内容标题）开始写作
+              editor?.commands.focus("start");
+            }
+            if (e.key === "Escape") setTitle(file.title);
+          }}
+          placeholder={t("suiteTitlePlaceholder")}
+          aria-label={t("suiteTitleAria")}
+          maxLength={200}
+          spellCheck={false}
+        />
         <span className={`doc-status${saveState === "error" ? " is-error" : ""}`} data-state={saveState}>
           {statusText} · {t("suiteWordCount", { n: charCount })}
         </span>
@@ -744,24 +779,7 @@ export function DocPageEditor({ file }: DocPageEditorProps) {
             if (e.target === e.currentTarget && editor) editor.commands.focus("end");
           }}
         >
-          <input
-            className="suite-doc__title suite-doc__title--canvas"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            onBlur={commitTitle}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                commitTitle();
-                editor?.commands.focus("end");
-              }
-              if (e.key === "Escape") setTitle(file.title);
-            }}
-            placeholder={t("suiteTitlePlaceholder")}
-            aria-label={t("suiteTitleAria")}
-            maxLength={200}
-            spellCheck={false}
-          />
+          {/* 文件名已上移顶栏，画布从正文首行（内容标题 H1）开始 */}
           {editor && <EditorContent editor={editor} className="suite-doc__prose" />}
           {isEmpty && <p className="suite-doc__placeholder">{t("suiteDocEmptyHint")}</p>}
           {/* 块悬浮把手：挂在画布内（fixed 定位不变），指针移到把手上不会触发画布 mouseleave */}

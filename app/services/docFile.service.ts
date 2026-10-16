@@ -43,7 +43,7 @@ export const docFileService = {
     return file;
   },
 
-  /** 新建文件：kind=doc 带空正文；kind=sheet 带一个默认页签 */
+  /** 新建文件：kind=doc 首行为 H1 内容标题（跟随文件名）；kind=sheet 带一个默认页签 */
   async create(kind: "doc" | "sheet", title: string): Promise<DocFile> {
     const trimmed = title.trim().slice(0, DOC_TITLE_MAX);
     if (!trimmed) throw new Error(t("errDocNameRequired"));
@@ -55,7 +55,17 @@ export const docFileService = {
       excerpt: "",
       createdAt: now,
       updatedAt: now,
-      content: kind === "doc" ? { type: "doc", content: [] } : null,
+      content:
+        kind === "doc"
+          ? {
+              type: "doc",
+              // 默认第一行即内容标题（H1 跟随文件名）；再补一个空段落让 "/" 菜单可直接唤起
+              content: [
+                { type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: trimmed }] },
+                { type: "paragraph" },
+              ],
+            }
+          : null,
       sheets:
         kind === "sheet"
           ? [{ id: uuid(), name: t("sheetDefaultPageName"), rows: 60, cols: 26, colWidths: {}, cells: {} }]

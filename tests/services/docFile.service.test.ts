@@ -13,10 +13,17 @@ describe("docFileService（在线文档套件）", () => {
     await db.preferences.clear();
   });
 
-  it("create：doc 带空正文、sheet 带默认页签；空名报错；list 按更新时间倒序", async () => {
+  it("create：doc 首行为 H1 内容标题（跟随文件名）、sheet 带默认页签；空名报错；list 按更新时间倒序", async () => {
     const docFile = await docFileService.create("doc", " 会议纪要 ");
     expect(docFile.title).toBe("会议纪要");
-    expect(docFile.content).toEqual({ type: "doc", content: [] });
+    // 默认第一行即内容标题：H1 跟随文件名，其后留空段落供 "/" 菜单起手
+    expect(docFile.content).toEqual({
+      type: "doc",
+      content: [
+        { type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "会议纪要" }] },
+        { type: "paragraph" },
+      ],
+    });
     expect(docFile.sheets).toEqual([]);
 
     const sheetFile = await docFileService.create("sheet", "预算表");
