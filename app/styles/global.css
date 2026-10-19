@@ -6975,10 +6975,6 @@ select.input {
   font-size: 12px;
 }
 
-.suite-toolbar__btn--flip {
-  transform: scaleX(-1);
-}
-
 /* ---------- 飞书式文档：固定格式工具栏 / 划选浮动工具栏 / 块把手 ---------- */
 .doc-page__actions {
   display: flex;
@@ -7812,47 +7808,6 @@ select.input {
   color: var(--color-text);
 }
 
-/* 对齐字形：三条短杠按左/中/右排布（图标库无对齐图标，svg 又受规范收敛） */
-.sheet-glyph {
-  display: block;
-  width: 14px;
-}
-
-.sheet-glyph::before,
-.sheet-glyph::after {
-  content: "";
-  display: block;
-  height: 2px;
-  margin-top: 2px;
-  border-radius: 1px;
-  background: currentcolor;
-}
-
-.sheet-glyph::before {
-  margin-top: 0;
-}
-
-.sheet-glyph[data-align="left"]::before,
-.sheet-glyph[data-align="center"]::before,
-.sheet-glyph[data-align="right"]::before {
-  width: 100%;
-}
-
-.sheet-glyph[data-align="left"]::after {
-  width: 65%;
-}
-
-.sheet-glyph[data-align="center"]::after {
-  width: 65%;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.sheet-glyph[data-align="right"]::after {
-  width: 65%;
-  margin-left: auto;
-}
-
 /* ---------- 在线表格：网格 ---------- */
 .sheet-grid {
   flex: 1;
@@ -8117,8 +8072,10 @@ select.input {
 }
 
 .sheet-menu__item {
-  display: block;
+  display: flex;
   width: 100%;
+  align-items: center;
+  gap: var(--space-2);
   padding: var(--space-1) var(--space-2);
   border: 0;
   border-radius: var(--radius-sm);
@@ -8127,6 +8084,12 @@ select.input {
   color: var(--color-text);
   text-align: left;
   cursor: pointer;
+}
+
+/* 菜单图标弱一档，与文案形成层次 */
+.sheet-menu__item svg {
+  flex: none;
+  color: var(--color-text-secondary);
 }
 
 .sheet-menu__item:hover {

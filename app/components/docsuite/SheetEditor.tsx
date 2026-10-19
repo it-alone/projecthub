@@ -3,7 +3,7 @@ import { useNavigate } from "@remix-run/react";
 import { docFileService } from "~/services/docFile.service";
 import { downloadTextFile } from "~/lib/download";
 import { useI18n } from "~/lib/i18n";
-import { Icon } from "~/components/ui/Icon";
+import { Icon, type IconName } from "~/components/ui/Icon";
 import { useToast } from "~/components/ui/Toast";
 import { ConfirmDialog } from "~/components/ui/ConfirmDialog";
 import type { DocFile, SheetPage } from "~/models/docSuite";
@@ -144,7 +144,11 @@ export function SheetEditor({ file }: SheetEditorProps) {
       lastSavedRef.current = snapshot; // 挂载先记基线，不触发首次保存
       return;
     }
-    if (snapshot === lastSavedRef.current) return;
+    // 变更在防抖窗口内被撤销时快照回到基线：无需落库，但要把 saving 状态归位
+    if (snapshot === lastSavedRef.current) {
+      setSaveState((prev) => (prev === "saving" ? "saved" : prev));
+      return;
+    }
     pendingRef.current = pages;
     setSaveState("saving");
     const timer = window.setTimeout(() => {
@@ -414,7 +418,8 @@ export function SheetEditor({ file }: SheetEditorProps) {
     setSel({ anchor: to, focus: to });
   }
 
-  function menuAction(action: string) {
+  /** 行列/剪贴动作（右键菜单与工具栏共用）：按 action 分发，插删后选区随平移 */
+  function runGridAction(action: string) {
     setMenu(null);
     switch (action) {
       case "insertRowAbove": {
@@ -684,29 +689,32 @@ export function SheetEditor({ file }: SheetEditorProps) {
   const frozenRow = page.frozen === "row" || page.frozen === "both";
   const frozenCol = page.frozen === "col" || page.frozen === "both";
 
-  const menuItems: readonly (readonly [string, string])[] =
+  /** 右键菜单项：[action, 文案, 图标]，三种挂载目标（行头/列头/单元格）各给定向增删集合 */
+  const menuItems: readonly (readonly [string, string, IconName])[] =
     menu?.target.kind === "row"
       ? [
-          ["insertRowAbove", t("sheetMenuInsertRowAbove")],
-          ["insertRowBelow", t("sheetMenuInsertRowBelow")],
-          ["deleteRow", t("sheetMenuDeleteRow")],
-          ["clear", t("sheetMenuClear")],
+          ["insertRowAbove", t("sheetMenuInsertRowAbove"), "rowAbove"],
+          ["insertRowBelow", t("sheetMenuInsertRowBelow"), "rowBelow"],
+          ["deleteRow", t("sheetMenuDeleteRow"), "rowRemove"],
+          ["clear", t("sheetMenuClear"), "eraser"],
         ]
       : menu?.target.kind === "col"
         ? [
-            ["insertColLeft", t("sheetMenuInsertColLeft")],
-            ["insertColRight", t("sheetMenuInsertColRight")],
-            ["deleteCol", t("sheetMenuDeleteCol")],
-            ["clear", t("sheetMenuClear")],
+            ["insertColLeft", t("sheetMenuInsertColLeft"), "colLeft"],
+            ["insertColRight", t("sheetMenuInsertColRight"), "colRight"],
+            ["deleteCol", t("sheetMenuDeleteCol"), "colRemove"],
+            ["clear", t("sheetMenuClear"), "eraser"],
           ]
         : [
-            ["copy", t("sheetMenuCopy")],
-            ["cut", t("sheetMenuCut")],
-            ["insertRowAbove", t("sheetMenuInsertRowAbove")],
-            ["insertRowBelow", t("sheetMenuInsertRowBelow")],
-            ["insertColLeft", t("sheetMenuInsertColLeft")],
-            ["insertColRight", t("sheetMenuInsertColRight")],
-            ["clear", t("sheetMenuClear")],
+            ["copy", t("sheetMenuCopy"), "copy"],
+            ["cut", t("sheetMenuCut"), "scissors"],
+            ["insertRowAbove", t("sheetMenuInsertRowAbove"), "rowAbove"],
+            ["insertRowBelow", t("sheetMenuInsertRowBelow"), "rowBelow"],
+            ["deleteRow", t("sheetMenuDeleteRow"), "rowRemove"],
+            ["insertColLeft", t("sheetMenuInsertColLeft"), "colLeft"],
+            ["insertColRight", t("sheetMenuInsertColRight"), "colRight"],
+            ["deleteCol", t("sheetMenuDeleteCol"), "colRemove"],
+            ["clear", t("sheetMenuClear"), "eraser"],
           ];
 
   return (
@@ -752,17 +760,17 @@ export function SheetEditor({ file }: SheetEditorProps) {
           onClick={undo}
           disabled={!undoRef.current.length}
         >
-          <Icon name="back" size={15} />
+          <Icon name="undo" size={15} />
         </button>
         <button
           type="button"
-          className="suite-toolbar__btn suite-toolbar__btn--flip"
+          className="suite-toolbar__btn"
           title={t("suiteTbRedo")}
           aria-label={t("suiteTbRedo")}
           onClick={redo}
           disabled={!redoRef.current.length}
         >
-          <Icon name="back" size={15} />
+          <Icon name="redo" size={15} />
         </button>
         <span className="sheet-toolbar__divider" aria-hidden />
         {(
@@ -796,8 +804,7 @@ export function SheetEditor({ file }: SheetEditorProps) {
             aria-pressed={focusAlign === a}
             onClick={() => applyAlign(a)}
           >
-            {/* 对齐字形用 CSS 三条短杠表达（图标库无对齐图标，svg 又受规范收敛） */}
-            <span className="sheet-glyph" data-align={a} aria-hidden />
+            <Icon name={a === "left" ? "alignLeft" : a === "center" ? "alignCenter" : "alignRight"} size={15} />
           </button>
         ))}
         <span className="sheet-toolbar__divider" aria-hidden />
@@ -840,26 +847,27 @@ export function SheetEditor({ file }: SheetEditorProps) {
         <span className="sheet-toolbar__divider" aria-hidden />
         {(
           [
-            { asc: true, label: "A→Z", labelKey: "sheetSortAsc" },
-            { asc: false, label: "Z→A", labelKey: "sheetSortDesc" },
+            { asc: true, icon: "sortAsc" as const, labelKey: "sheetSortAsc" as const },
+            { asc: false, icon: "sortDesc" as const, labelKey: "sheetSortDesc" as const },
           ] as const
         ).map((it) => (
           <button
-            key={it.label}
+            key={it.labelKey}
             type="button"
             className="suite-toolbar__btn"
             title={t(it.labelKey)}
             aria-label={t(it.labelKey)}
             onClick={() => applySort(it.asc)}
           >
-            {it.label}
+            <Icon name={it.icon} size={15} />
           </button>
         ))}
+        {/* 冻结首行/首列：面板图标实心带即被钉住的行/列（复用表头图标形） */}
         {(
           [
-            { kind: "row" as const, label: "☰", labelKey: "sheetFreezeRow" as const, on: frozenRow },
-            { kind: "col" as const, label: "▯", labelKey: "sheetFreezeCol" as const, on: frozenCol },
-          ]
+            { kind: "row" as const, icon: "headerRow" as const, labelKey: "sheetFreezeRow" as const, on: frozenRow },
+            { kind: "col" as const, icon: "headerCol" as const, labelKey: "sheetFreezeCol" as const, on: frozenCol },
+          ] as const
         ).map((it) => (
           <button
             key={it.kind}
@@ -870,7 +878,30 @@ export function SheetEditor({ file }: SheetEditorProps) {
             aria-pressed={it.on}
             onClick={() => applyFrozen(it.kind)}
           >
-            {it.label}
+            <Icon name={it.icon} size={15} />
+          </button>
+        ))}
+        <span className="sheet-toolbar__divider" aria-hidden />
+        {/* 行列快捷操作：与右键菜单同源命令，作用于当前选区（插删后选区随平移） */}
+        {(
+          [
+            { action: "insertRowAbove", icon: "rowAbove" as const, labelKey: "sheetMenuInsertRowAbove" as const },
+            { action: "insertRowBelow", icon: "rowBelow" as const, labelKey: "sheetMenuInsertRowBelow" as const },
+            { action: "deleteRow", icon: "rowRemove" as const, labelKey: "sheetMenuDeleteRow" as const },
+            { action: "insertColLeft", icon: "colLeft" as const, labelKey: "sheetMenuInsertColLeft" as const },
+            { action: "insertColRight", icon: "colRight" as const, labelKey: "sheetMenuInsertColRight" as const },
+            { action: "deleteCol", icon: "colRemove" as const, labelKey: "sheetMenuDeleteCol" as const },
+          ] as const
+        ).map((it) => (
+          <button
+            key={it.action}
+            type="button"
+            className="suite-toolbar__btn"
+            title={t(it.labelKey)}
+            aria-label={t(it.labelKey)}
+            onClick={() => runGridAction(it.action)}
+          >
+            <Icon name={it.icon} size={15} />
           </button>
         ))}
         <button
@@ -880,7 +911,7 @@ export function SheetEditor({ file }: SheetEditorProps) {
           aria-label={t("sheetClearStyle")}
           onClick={clearStyle}
         >
-          <Icon name="close" size={15} />
+          <Icon name="eraser" size={15} />
         </button>
       </div>
 
@@ -1174,9 +1205,16 @@ export function SheetEditor({ file }: SheetEditorProps) {
           tabIndex={-1}
           onMouseDown={(e) => e.stopPropagation()}
         >
-          {menuItems.map(([action, label]) => (
-            <button key={action} type="button" className="sheet-menu__item" role="menuitem" onClick={() => menuAction(action)}>
-              {label}
+          {menuItems.map(([action, label, icon]) => (
+            <button
+              key={action}
+              type="button"
+              className="sheet-menu__item"
+              role="menuitem"
+              onClick={() => runGridAction(action)}
+            >
+              <Icon name={icon} size={14} />
+              <span>{label}</span>
             </button>
           ))}
         </div>

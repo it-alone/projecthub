@@ -60,7 +60,13 @@ export type IconName =
   | "valignTop"
   | "valignMiddle"
   | "valignBottom"
-  | "cellFill";
+  | "cellFill"
+  | "alignLeft"
+  | "alignCenter"
+  | "alignRight"
+  | "sortAsc"
+  | "sortDesc"
+  | "scissors";
 
 const PATHS: Record<IconName, React.ReactNode> = {
   kanban: (
@@ -456,6 +462,57 @@ const PATHS: Record<IconName, React.ReactNode> = {
     <>
       <rect x="4" y="4" width="16" height="16" rx="2" />
       <rect x="7.5" y="7.5" width="9" height="9" rx="1" fill="currentColor" stroke="none" />
+    </>
+  ),
+  // 水平对齐：三条不等长横线，线端在对齐侧收齐
+  alignLeft: (
+    <>
+      <path d="M4 6h16" />
+      <path d="M4 12h10" />
+      <path d="M4 18h14" />
+    </>
+  ),
+  alignCenter: (
+    <>
+      <path d="M4 6h16" />
+      <path d="M7 12h10" />
+      <path d="M5 18h14" />
+    </>
+  ),
+  alignRight: (
+    <>
+      <path d="M4 6h16" />
+      <path d="M10 12h10" />
+      <path d="M6 18h14" />
+    </>
+  ),
+  // 排序：箭头方向即升降序，横线由短到长 / 由长到短呼应
+  sortAsc: (
+    <>
+      <path d="M7 20V4" />
+      <path d="m3 8 4-4 4 4" />
+      <path d="M14 7h7" />
+      <path d="M14 13h5" />
+      <path d="M14 19h3" />
+    </>
+  ),
+  sortDesc: (
+    <>
+      <path d="M7 4v16" />
+      <path d="m3 16 4 4 4-4" />
+      <path d="M14 5h3" />
+      <path d="M14 11h5" />
+      <path d="M14 17h7" />
+    </>
+  ),
+  // 剪切（右键菜单与工具栏共用的剪贴语义）
+  scissors: (
+    <>
+      <circle cx="6" cy="6" r="3" />
+      <path d="M8.12 8.12 12 12" />
+      <path d="M20 4 8.12 15.88" />
+      <circle cx="6" cy="18" r="3" />
+      <path d="M14.8 14.8 20 20" />
     </>
   ),
 };
