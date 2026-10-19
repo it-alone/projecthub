@@ -3,8 +3,8 @@ import { useI18n } from "~/lib/i18n";
 import { BG_PALETTE, HIGHLIGHT_PALETTE, TEXT_PALETTE, type PaletteEntry } from "~/lib/palette";
 
 export interface ColorPaletteProps {
-  /** text = 文字色板；fill = 背景色板；highlight = 高亮笔色板 */
-  mode: "text" | "fill" | "highlight";
+  /** text = 文字色板；fill = 背景色板；highlight = 高亮笔色板；cell = 单元格填充（与 fill 同板） */
+  mode: "text" | "fill" | "highlight" | "cell";
   /** 视口坐标（锚在触发按钮下方） */
   x: number;
   y: number;
@@ -19,7 +19,7 @@ export interface ColorPaletteProps {
  */
 export function ColorPalette({ mode, x, y, onPick, onClose }: ColorPaletteProps) {
   const { t } = useI18n();
-  const list = mode === "text" ? TEXT_PALETTE : mode === "fill" ? BG_PALETTE : HIGHLIGHT_PALETTE;
+  const list = mode === "text" ? TEXT_PALETTE : mode === "highlight" ? HIGHLIGHT_PALETTE : BG_PALETTE;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -40,7 +40,6 @@ export function ColorPalette({ mode, x, y, onPick, onClose }: ColorPaletteProps)
 
   return (
     // 色板浮层是纯指针增强的弹出菜单，键盘用户经触发按钮的 Enter 打开、Esc 关闭
-    // eslint-disable-next-line jsx-a11y/no-static-element-interactions
     <div
       className="color-palette"
       style={{ left, top }}

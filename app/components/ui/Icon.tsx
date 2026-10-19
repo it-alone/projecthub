@@ -56,7 +56,11 @@ export type IconName =
   | "cellMerge"
   | "cellSplit"
   | "headerRow"
-  | "headerCol";
+  | "headerCol"
+  | "valignTop"
+  | "valignMiddle"
+  | "valignBottom"
+  | "cellFill";
 
 const PATHS: Record<IconName, React.ReactNode> = {
   kanban: (
@@ -426,6 +430,32 @@ const PATHS: Record<IconName, React.ReactNode> = {
     <>
       <rect x="3" y="4" width="18" height="16" rx="2" />
       <path d="M3 4h5v16H3z" fill="currentColor" />
+    </>
+  ),
+  // 垂直对齐：外框为单元格，横线的位置即内容对齐位置
+  valignTop: (
+    <>
+      <rect x="4" y="3" width="16" height="18" rx="2" />
+      <path d="M8 7h8" />
+    </>
+  ),
+  valignMiddle: (
+    <>
+      <rect x="4" y="3" width="16" height="18" rx="2" />
+      <path d="M8 12h8" />
+    </>
+  ),
+  valignBottom: (
+    <>
+      <rect x="4" y="3" width="16" height="18" rx="2" />
+      <path d="M8 17h8" />
+    </>
+  ),
+  // 单元格背景填充：外框空格 + 内部实心方格
+  cellFill: (
+    <>
+      <rect x="4" y="4" width="16" height="16" rx="2" />
+      <rect x="7.5" y="7.5" width="9" height="9" rx="1" fill="currentColor" stroke="none" />
     </>
   ),
 };

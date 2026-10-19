@@ -7,7 +7,8 @@ import Link from "@tiptap/extension-link";
 import TextAlign from "@tiptap/extension-text-align";
 import { TaskItem } from "@tiptap/extension-list/task-item";
 import { TaskList } from "@tiptap/extension-list/task-list";
-import { TableKit } from "@tiptap/extension-table";
+import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table";
+import { CellSelection, TableMap } from "@tiptap/pm/tables";
 import { BackgroundColor, Color, FontSize, TextStyle } from "@tiptap/extension-text-style";
 import { TextSelection } from "@tiptap/pm/state";
 import type { JSONContent } from "@tiptap/react";
@@ -24,18 +25,62 @@ import type { DocFile } from "~/models/docSuite";
 
 type SaveState = "saved" | "saving" | "error";
 type Anchor2D = { x: number; y: number };
-/** 取色浮层模式：text 文字色 / fill 背景色 / highlight 高亮笔 */
-type PaletteMode = "text" | "fill" | "highlight";
+/** 取色浮层模式：text 文字色 / fill 背景色 / highlight 高亮笔 / cell 单元格填充 */
+type PaletteMode = "text" | "fill" | "highlight" | "cell";
 interface OutlineItem {
   level: number;
   text: string;
   pos: number;
 }
 
+/** 行/列悬浮把手：index 为行/列序号，start 为所属表格在文档中的起始位置 */
+type TableHandleAnchor = Anchor2D & { index: number; start: number };
+
 const CLOSED_SLASH: SlashMenuState = { open: false, x: 0, y: 0, query: "", items: [], activeIndex: 0, select: () => {} };
 
 /** 字号候选（px；空 = 默认字号） */
 const FONT_SIZES = ["", "12px", "14px", "16px", "18px", "24px", "32px", "48px"] as const;
+
+/** 插表网格选择器规格：6 列 × 8 行（悬停高亮，点击按 r×c 插入） */
+const PICKER_COLS = 6;
+const PICKER_ROWS = 8;
+
+/* 单元格扩展属性：背景色与垂直对齐（tiptap v3 原生单元格只有 align）。
+   色值来自数据色板（运行时字符串），非主题硬编码；parseHTML 兼容粘贴自外部表格的行内样式 */
+function cellExtraAttributes() {
+  return {
+    backgroundColor: {
+      default: null,
+      parseHTML: (element: HTMLElement) => {
+        const value = element.style.backgroundColor;
+        return value && value !== "rgba(0, 0, 0, 0)" ? value : null;
+      },
+      renderHTML: (attributes: Record<string, unknown>) =>
+        attributes.backgroundColor ? { style: `background-color: ${attributes.backgroundColor as string}` } : {},
+    },
+    verticalAlign: {
+      default: null,
+      parseHTML: (element: HTMLElement) => {
+        const value = element.style.verticalAlign;
+        return value === "top" || value === "middle" || value === "bottom" ? value : null;
+      },
+      renderHTML: (attributes: Record<string, unknown>) =>
+        attributes.verticalAlign ? { style: `vertical-align: ${attributes.verticalAlign as string}` } : {},
+    },
+  };
+}
+
+const StyledTableCell = TableCell.extend({
+  addAttributes() {
+    return { ...this.parent?.(), ...cellExtraAttributes() };
+  },
+});
+
+const StyledTableHeader = TableHeader.extend({
+  addAttributes() {
+    return { ...this.parent?.(), ...cellExtraAttributes() };
+  },
+});
 
 /** 对齐按钮文案键（固定工具栏与划选浮动栏共用） */
 function alignKey(a: "left" | "center" | "right") {
@@ -66,6 +111,16 @@ export function DocPageEditor({ file }: DocPageEditorProps) {
   const [blockMenu, setBlockMenu] = useState<(Anchor2D & { start: number }) | null>(null);
   const [palette, setPalette] = useState<{ mode: PaletteMode; x: number; y: number } | null>(null);
   const [tableBar, setTableBar] = useState<Anchor2D | null>(null);
+  // 表格行/列悬浮把手（同时只挂一组，贴行左缘与列上缘）
+  const [tableHandles, setTableHandles] = useState<{ row: TableHandleAnchor | null; col: TableHandleAnchor | null }>({
+    row: null,
+    col: null,
+  });
+  // 行/列把手的快捷菜单（选中整行/列后提供插入与删除）
+  const [tableMenu, setTableMenu] = useState<(Anchor2D & { kind: "row" | "col" }) | null>(null);
+  // 插表尺寸网格浮层（悬停 r×c 高亮）
+  const [tablePicker, setTablePicker] = useState<Anchor2D | null>(null);
+  const [pickerHover, setPickerHover] = useState({ rows: 0, cols: 0 });
   const [outline, setOutline] = useState<OutlineItem[]>([]);
   // 链接编辑浮层：initial 是已有 href（光标在链接内时），apply 时回写
   const [linkEdit, setLinkEdit] = useState<(Anchor2D & { initial: string }) | null>(null);
@@ -92,8 +147,11 @@ export function DocPageEditor({ file }: DocPageEditorProps) {
       // 飞书式待办清单：勾选框可点，nested 允许清单嵌套
       TaskList,
       TaskItem.configure({ nested: true }),
-      // 文档内表格块：列宽可拖拽（列缘 resize handle，成熟表格的标准能力）
-      TableKit.configure({ table: { resizable: true } }),
+      // 文档内表格块：列宽可拖拽（列缘 resize handle）；单元格扩展了背景色/垂直对齐属性
+      Table.configure({ resizable: true }),
+      TableRow,
+      StyledTableCell,
+      StyledTableHeader,
       // 文字/背景色/字号（span 内联样式，色值来自 ~/lib/palette 数据色板）
       TextStyle,
       Color,
@@ -259,12 +317,92 @@ export function DocPageEditor({ file }: DocPageEditorProps) {
     };
   }, [blockMenu]);
 
+  /* ----- 行列把手菜单 / 插表尺寸浮层：同块菜单的关闭策略 ----- */
+  useEffect(() => {
+    if (!tableMenu && !tablePicker) return;
+    const close = () => {
+      setTableMenu(null);
+      setTablePicker(null);
+    };
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key === "Escape") close();
+    };
+    window.addEventListener("mousedown", close);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", close, true);
+    return () => {
+      window.removeEventListener("mousedown", close);
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", close, true);
+    };
+  }, [tableMenu, tablePicker]);
+
   /** 悬停定位当前块：解析到顶层块边界，把手落在块左侧留白槽（飞书式 gutter） */
   function onPaperMouseMove(e: React.MouseEvent) {
     if (!editor || blockMenu) return;
     // 指针在正文以外（把手/内边距/标题）：保持现状，否则悬停把手本身会把把手清掉
     const prose = editor.view.dom;
     if (!(e.target instanceof Node) || !prose.contains(e.target)) return;
+
+    /* 表格行/列悬浮把手：指针落在单元格上时，行把手贴行左缘、列把手贴表头上缘；
+       表格内部不再显示块把手（左侧留白被行把手占用，避免两个把手叠在一起） */
+    if (e.target instanceof Element) {
+      if (e.target.closest(".doc-table-handle")) return; // 悬停把手自身：保持现状
+      const cell = e.target.closest("td, th");
+      if (!(cell instanceof HTMLTableCellElement && prose.contains(cell))) {
+        // 指针离开单元格但仍处在表格周边带（tableWrapper 空白/表格边缘）时保持把手：
+        // 行把手贴表格左缘、列把手贴上缘，从单元格移过去的路径必经非 td 区域，
+        // 若一离开单元格就清掉，把手会在半途消失而永远点不到
+        const anchor = tableHandles.row ?? tableHandles.col;
+        if (anchor) {
+          const dom = editor.view.nodeDOM(anchor.start);
+          if (dom instanceof HTMLElement) {
+            const rect = dom.getBoundingClientRect();
+            if (
+              e.clientX >= rect.left - 64 && e.clientX <= rect.right + 24 &&
+              e.clientY >= rect.top - 64 && e.clientY <= rect.bottom + 24
+            ) return;
+          }
+        }
+      }
+      if (cell instanceof HTMLTableCellElement && prose.contains(cell)) {
+        const rowEl = cell.closest("tr");
+        const tableEl = cell.closest("table");
+        const posInfo = editor.view.posAtCoords({ left: e.clientX, top: e.clientY });
+        let start = -1;
+        if (posInfo) {
+          const $p = editor.state.doc.resolve(posInfo.inside >= 0 ? posInfo.inside : posInfo.pos);
+          for (let d = $p.depth; d > 0; d--) {
+            if ($p.node(d).type.name === "table") {
+              start = $p.before(d);
+              break;
+            }
+          }
+        }
+        const rowIndex = rowEl?.parentElement ? Array.from(rowEl.parentElement.children).indexOf(rowEl) : -1;
+        if (start >= 0 && rowIndex >= 0 && rowEl && tableEl instanceof HTMLElement) {
+          const tableRect = tableEl.getBoundingClientRect();
+          const rowRect = rowEl.getBoundingClientRect();
+          const cellRect = cell.getBoundingClientRect();
+          const next = {
+            row: { x: tableRect.left - 26, y: rowRect.top + rowRect.height / 2, index: rowIndex, start },
+            col: { x: cellRect.left + cellRect.width / 2, y: tableRect.top - 26, index: cell.cellIndex, start },
+          };
+          setTableHandles((prev) =>
+            prev.row?.index === next.row.index && prev.row.start === next.row.start &&
+            Math.abs(prev.row.x - next.row.x) < 2 && Math.abs(prev.row.y - next.row.y) < 2 &&
+            prev.col?.index === next.col.index && prev.col.start === next.col.start &&
+            Math.abs(prev.col.x - next.col.x) < 2 && Math.abs(prev.col.y - next.col.y) < 2
+              ? prev
+              : next,
+          );
+          setBlockHandle(null);
+          return;
+        }
+      }
+      setTableHandles({ row: null, col: null });
+    }
+
     const posInfo = editor.view.posAtCoords({ left: e.clientX, top: e.clientY });
     if (!posInfo) return;
     const $p = editor.state.doc.resolve(posInfo.inside >= 0 ? posInfo.inside : posInfo.pos);
@@ -349,6 +487,39 @@ export function DocPageEditor({ file }: DocPageEditorProps) {
     editor?.chain().focus()[cmd]().run();
   }
 
+  /** 行/列把手点击：把整行/整列置为 CellSelection，随后的增删命令作用于整个选区 */
+  function selectTableLine(kind: "row" | "col", index: number, start: number) {
+    if (!editor) return;
+    const table = editor.state.doc.nodeAt(start);
+    if (!table || table.type.name !== "table") return;
+    const doc = editor.state.doc;
+    const map = TableMap.get(table);
+    const at = (row: number, col: number) => doc.resolve(start + map.positionAt(row, col, table));
+    try {
+      const sel =
+        kind === "row"
+          ? CellSelection.rowSelection(at(index, 0), at(index, map.width - 1))
+          : CellSelection.colSelection(at(0, index), at(map.height - 1, index));
+      editor.view.dispatch(editor.state.tr.setSelection(sel));
+    } catch {
+      // 合并单元格等结构下 positionAt 可能落在不可选位置，放弃选择（把手点击无害失败）
+    }
+  }
+
+  /** 读光标/选区锚点所在单元格属性（表头与普通格二选一命中） */
+  function readCellAttrs(): { align: string | null; verticalAlign: string | null } {
+    const attrs = { ...editor?.getAttributes("tableHeader"), ...editor?.getAttributes("tableCell") };
+    return {
+      align: typeof attrs.align === "string" ? attrs.align : null,
+      verticalAlign: typeof attrs.verticalAlign === "string" ? attrs.verticalAlign : null,
+    };
+  }
+
+  /** 单元格属性写入（作用于选中全部单元格；null = 清除恢复默认） */
+  function setCellAttr(name: "align" | "verticalAlign" | "backgroundColor", value: string | null) {
+    editor?.chain().focus().setCellAttribute(name, value).run();
+  }
+
   /** 读当前表格的表头标记：首行是否整行为表头 / 首列是否整列为表头（表头切换按钮的激活态） */
   function readHeaderFlags(): { row: boolean; col: boolean } {
     if (!editor?.isActive("table")) return { row: false, col: false };
@@ -419,7 +590,7 @@ export function DocPageEditor({ file }: DocPageEditorProps) {
     editor?.chain().focus().clearNodes().unsetAllMarks().run();
   }
 
-  /** 取色浮层回调：选中色板条目写入对应 mark；null = 清除颜色 */
+  /** 取色浮层回调：选中色板条目写入对应 mark（cell = 单元格背景属性）；null = 清除颜色 */
   function pickColor(entry: { value: string } | null) {
     const mode = palette?.mode;
     setPalette(null);
@@ -431,6 +602,8 @@ export function DocPageEditor({ file }: DocPageEditorProps) {
     } else if (mode === "highlight") {
       if (entry) chain.setHighlight({ color: entry.value }).run();
       else chain.unsetHighlight().run();
+    } else if (mode === "cell") {
+      chain.setCellAttribute("backgroundColor", entry?.value ?? null).run();
     } else {
       if (entry) chain.setBackgroundColor(entry.value).run();
       else chain.unsetBackgroundColor().run();
@@ -570,19 +743,54 @@ export function DocPageEditor({ file }: DocPageEditorProps) {
     { key: "delete", label: t("suiteBlockDelete"), run: () => blockMenu && deleteBlock(blockMenu.start) },
   ];
 
-  /* ----- 表格工具条按钮组：行 / 列 / 表头 / 合并拆分 / 整表（图标 + 分组分隔，成熟表格操作全集） ----- */
+  /* ----- 表格工具条按钮组：行 / 列 / 表头 / 合并拆分 / 单元格格式 / 整表（图标 + 分组分隔） ----- */
   const headerFlags = readHeaderFlags();
   const canMergeCells = !!editor?.can().mergeCells();
   const canSplitCell = !!editor?.can().splitCell();
+  const cellAttrs = readCellAttrs();
+  /** 图标按钮或对齐字形按钮（横向对齐沿用正文工具栏的两短杠字形，保持同一视觉语言） */
   type TableBtn = {
     id: string;
-    icon: IconName;
+    icon?: IconName;
+    glyph?: "left" | "center" | "right";
     label: string;
     active?: boolean;
     disabled?: boolean;
     danger?: boolean;
     run: () => void;
   };
+  /** 单元格格式组：水平对齐（align 属性，null 视为 left）+ 垂直对齐（verticalAlign 属性，null 视为 top）+ 背景填充 */
+  const cellFormatBtns: TableBtn[] = [
+    ...(["left", "center", "right"] as const).map((v) => ({
+      id: `align-${v}`,
+      glyph: v,
+      label: t(v === "left" ? "suiteAlignLeft" : v === "center" ? "suiteAlignCenter" : "suiteAlignRight"),
+      active: (cellAttrs.align ?? "left") === v,
+      run: () => setCellAttr("align", v),
+    })),
+    ...(
+      [
+        { v: "top", icon: "valignTop", key: "suiteTbValignTop" },
+        { v: "middle", icon: "valignMiddle", key: "suiteTbValignMiddle" },
+        { v: "bottom", icon: "valignBottom", key: "suiteTbValignBottom" },
+      ] as const
+    ).map((it) => ({
+      id: `valign-${it.v}`,
+      icon: it.icon,
+      label: t(it.key),
+      active: (cellAttrs.verticalAlign ?? "top") === it.v,
+      run: () => setCellAttr("verticalAlign", it.v),
+    })),
+    {
+      id: "cellFill",
+      icon: "cellFill",
+      label: t("suiteTbCellFill"),
+      run: () => {
+        if (palette?.mode === "cell") setPalette(null);
+        else if (tableBar) setPalette({ mode: "cell", x: tableBar.x, y: tableBar.y + 42 });
+      },
+    },
+  ];
   const tableGroups: TableBtn[][] = [
     [
       { id: "addRowBefore", icon: "rowAbove", label: t("suiteTbRowAbove"), run: () => runTableCmd("addRowBefore") },
@@ -614,6 +822,7 @@ export function DocPageEditor({ file }: DocPageEditorProps) {
       { id: "mergeCells", icon: "cellMerge", label: t("suiteTbMerge"), disabled: !canMergeCells, run: () => runTableCmd("mergeCells") },
       { id: "splitCell", icon: "cellSplit", label: t("suiteTbSplit"), disabled: !canSplitCell, run: () => runTableCmd("splitCell") },
     ],
+    cellFormatBtns,
     [{ id: "deleteTable", icon: "trash", label: t("suiteTbDelTable"), danger: true, run: () => runTableCmd("deleteTable") }],
   ];
 
@@ -820,10 +1029,16 @@ export function DocPageEditor({ file }: DocPageEditorProps) {
         </button>
         <button
           type="button"
-          className="suite-toolbar__btn"
+          className={`suite-toolbar__btn${tablePicker ? " is-active" : ""}`}
           title={t("suiteBlockTable")}
           aria-label={t("suiteBlockTable")}
-          onClick={() => editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
+          aria-pressed={!!tablePicker}
+          aria-haspopup="menu"
+          onClick={(e) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            setPickerHover({ rows: 0, cols: 0 });
+            setTablePicker(tablePicker ? null : { x: rect.left, y: rect.bottom + 6 });
+          }}
         >
           <Icon name="table" size={15} />
         </button>
@@ -857,6 +1072,7 @@ export function DocPageEditor({ file }: DocPageEditorProps) {
           onMouseMove={onPaperMouseMove}
           onMouseLeave={() => {
             if (!blockMenu) setBlockHandle(null);
+            if (!tableMenu) setTableHandles({ row: null, col: null });
           }}
           onMouseDown={(e) => {
             // 点击画布空白（纸张内边距区域）→ 焦点落到正文末尾（飞书交互）
@@ -1057,11 +1273,124 @@ export function DocPageEditor({ file }: DocPageEditorProps) {
                   disabled={btn.disabled}
                   onClick={() => btn.run()}
                 >
-                  <Icon name={btn.icon} size={15} />
+                  {btn.icon ? (
+                    <Icon name={btn.icon} size={15} />
+                  ) : (
+                    <span className="doc-align-glyph" data-align={btn.glyph} aria-hidden />
+                  )}
                 </button>
               ))}
             </Fragment>
           ))}
+        </div>
+      )}
+
+      {/* 表格行/列悬浮把手：点击选中整行/整列并弹出对应快捷菜单（把手挂在画布内，移入把手不清除定位） */}
+      {tableHandles.row && !tableMenu && (
+        <button
+          type="button"
+          className="doc-table-handle"
+          style={{ left: `${tableHandles.row.x}px`, top: `${tableHandles.row.y}px` }}
+          aria-label={t("suiteRowHandleAria")}
+          aria-haspopup="menu"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => {
+            selectTableLine("row", tableHandles.row!.index, tableHandles.row!.start);
+            setTableMenu({ kind: "row", x: tableHandles.row!.x + 16, y: tableHandles.row!.y - 10 });
+          }}
+        >
+          <Icon name="chevronRight" size={12} />
+        </button>
+      )}
+      {tableHandles.col && !tableMenu && (
+        <button
+          type="button"
+          className="doc-table-handle"
+          style={{ left: `${tableHandles.col.x}px`, top: `${tableHandles.col.y}px` }}
+          aria-label={t("suiteColHandleAria")}
+          aria-haspopup="menu"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => {
+            selectTableLine("col", tableHandles.col!.index, tableHandles.col!.start);
+            setTableMenu({ kind: "col", x: tableHandles.col!.x - 70, y: tableHandles.col!.y + 16 });
+          }}
+        >
+          <Icon name="chevronDown" size={12} />
+        </button>
+      )}
+
+      {/* 行/列快捷菜单：选中整行/列后的定向增删（复用表格命令，作用于当前选区） */}
+      {tableMenu && (
+        <div
+          className="doc-table-menu"
+          role="menu"
+          tabIndex={-1}
+          style={{ left: `${tableMenu.x}px`, top: `${tableMenu.y}px` }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          {(tableMenu.kind === "row"
+            ? ([
+                { cmd: "addRowBefore", label: t("suiteTbRowAbove") },
+                { cmd: "addRowAfter", label: t("suiteTbRowBelow") },
+                { cmd: "deleteRow", label: t("suiteTbDelRow"), danger: true },
+              ] as const)
+            : ([
+                { cmd: "addColumnBefore", label: t("suiteTbColLeft") },
+                { cmd: "addColumnAfter", label: t("suiteTbColRight") },
+                { cmd: "deleteColumn", label: t("suiteTbDelCol"), danger: true },
+              ] as const)
+          ).map((it) => (
+            <button
+              key={it.cmd}
+              type="button"
+              className={`doc-table-menu__item${"danger" in it && it.danger ? " is-danger" : ""}`}
+              role="menuitem"
+              onClick={() => {
+                runTableCmd(it.cmd);
+                setTableMenu(null);
+              }}
+            >
+              {it.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* 插表尺寸网格：悬停高亮 r×c，点击按尺寸插入（默认含表头行） */}
+      {tablePicker && (
+        <div
+          className="table-picker"
+          role="menu"
+          tabIndex={-1}
+          aria-label={t("suitePickTableSize")}
+          style={{ left: `${tablePicker.x}px`, top: `${tablePicker.y}px` }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <div className="table-picker__grid" onMouseLeave={() => setPickerHover({ rows: 0, cols: 0 })}>
+            {Array.from({ length: PICKER_ROWS * PICKER_COLS }, (_, i) => {
+              const r = Math.floor(i / PICKER_COLS) + 1;
+              const c = (i % PICKER_COLS) + 1;
+              return (
+                <button
+                  key={`${r}-${c}`}
+                  type="button"
+                  className={`table-picker__cell${r <= pickerHover.rows && c <= pickerHover.cols ? " is-in" : ""}`}
+                  title={`${r} × ${c}`}
+                  aria-label={t("suiteTableSizeHint", { r, c })}
+                  onMouseEnter={() => setPickerHover({ rows: r, cols: c })}
+                  onClick={() => {
+                    editor?.chain().focus().insertTable({ rows: r, cols: c, withHeaderRow: true }).run();
+                    setTablePicker(null);
+                  }}
+                />
+              );
+            })}
+          </div>
+          <p className="table-picker__hint">
+            {pickerHover.rows > 0
+              ? `${t("suiteTableSizeHint", { r: pickerHover.rows, c: pickerHover.cols })} · ${t("suiteTableWithHeader")}`
+              : t("suiteTableWithHeader")}
+          </p>
         </div>
       )}
 
