@@ -1241,9 +1241,9 @@ select.input {
   font-weight: 600;
 }
 
-/* ---------- 看板父子分组：整组一张面板，父为面板头、子为内嵌行 ---------- */
+/* ---------- 看板父子分组：单面板两区——父任务为头区、子任务为缩进树区 ---------- */
 
-/* 组面板：surface 底 + 大圆角 + 细边框，把父子呈现为一个可感知的整体；
+/* 组面板：头区（父任务卡）+ 树区（子任务行）堆叠为一个整体容器；
    hover 整组升起，暗示可以整组拖动 */
 .task-group {
   display: flex;
@@ -1251,7 +1251,6 @@ select.input {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  padding: var(--space-2);
   transition: border-color var(--transition), box-shadow var(--transition),
     opacity var(--transition);
 }
@@ -1266,13 +1265,14 @@ select.input {
   opacity: 0.55;
 }
 
-/* 父卡退化为面板头：去掉独立卡片外观，只承载内容行 */
+/* 父卡＝头区：通栏内容行，底部给进度条让出 3px */
 .task-card--parent {
+  position: relative;
   background: none;
   border: 0;
   border-radius: 0;
   box-shadow: none;
-  padding: var(--space-1);
+  padding: 10px var(--space-3) 13px;
 }
 
 .task-card--parent:hover {
@@ -1288,24 +1288,61 @@ select.input {
   font-weight: 600;
 }
 
-/* 组内子卡序列：紧凑列表，行距收紧与列间距形成从属节奏 */
+/* 头区底部子任务进度条：完成度从左向右填充，全完切换成功色 */
+.task-card__progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    var(--color-primary) var(--p, 0%),
+    color-mix(in srgb, var(--color-border) 55%, transparent) var(--p, 0%)
+  );
+}
+
+.task-card__progress.is-complete {
+  background: linear-gradient(
+    90deg,
+    var(--color-success) var(--p, 0%),
+    color-mix(in srgb, var(--color-border) 55%, transparent) var(--p, 0%)
+  );
+}
+
+/* 树区：浅一档底 + 左侧引导线，子行缩进为文件树式层级；
+   底部圆角与面板内缘对齐（不用 overflow 裁切，保留键盘拖拽位移可见性） */
 .task-group__children {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  margin-top: var(--space-1);
+  padding: var(--space-2) var(--space-2) var(--space-2) 26px;
+  background: var(--color-surface-muted);
+  border-radius: 0 0 calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px);
 }
 
-/* 子卡退化为无边框内嵌行：hover 浮出浅底，不再是独立卡片 */
+.task-group__children::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 15px;
+  width: 1px;
+  background: var(--color-border-strong);
+}
+
+/* 子卡＝树区行：紧凑行（标题 + meta），hover 浮出圆角浅底 */
 .task-card--child {
   background: transparent;
   border-color: transparent;
   box-shadow: none;
-  padding: var(--space-1) var(--space-2);
+  padding: 5px var(--space-2);
+  border-radius: var(--radius-sm);
 }
 
 .task-card--child:hover {
-  background: var(--color-surface-muted);
+  background: var(--color-surface);
   border-color: transparent;
   box-shadow: none;
 }
@@ -1316,6 +1353,10 @@ select.input {
 
 .task-card--child .task-card__title {
   font-size: 12px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .task-card--child .task-card__foot {
@@ -1323,14 +1364,34 @@ select.input {
   gap: var(--space-1);
 }
 
-.task-card--child .task-card__labels {
-  margin-top: var(--space-1);
+.task-card--child .task-card__due,
+.task-card--child .task-card__subt {
+  font-size: 11px;
+}
+
+.task-card--child .check {
+  width: 16px;
+  height: 16px;
 }
 
 .task-card--child .task-card__assignee {
   width: 18px;
   height: 18px;
   font-size: 9px;
+}
+
+/* 树区子行标签色点：信息保真但不撑高紧凑行 */
+.task-card__labeldots {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.task-card__label-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-full);
+  background: var(--dot-c, var(--color-primary));
 }
 
 /* 圆形完成勾选（卡片/抽屉共用） */
@@ -1361,7 +1422,7 @@ select.input {
 
 .task-card__main { flex: 1; min-width: 0; }
 
-/* 独立子卡（父任务在其他列）：父标识 pill，一眼可溯源 */
+/* 独立子卡（父任务在其他列）：父标识 pill 用品牌浅底强调「有上游」，一眼可溯源 */
 .task-card__parent {
   display: inline-flex;
   align-items: center;
@@ -1371,13 +1432,14 @@ select.input {
   padding: 0 6px;
   line-height: 18px;
   border-radius: var(--radius-full);
-  background: var(--color-surface-muted);
-  border: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 22%, transparent);
   font-size: 11px;
-  color: var(--color-text-secondary);
+  font-weight: 500;
+  color: var(--color-primary-strong);
   white-space: nowrap;
 }
-.task-card__parent svg { flex: none; color: var(--color-text-faint); }
+.task-card__parent svg { flex: none; color: inherit; }
 
 .task-card__parent-name {
   min-width: 0;
@@ -1415,38 +1477,24 @@ select.input {
   font-variant-numeric: tabular-nums;
 }
 
-/* 父卡片子任务进度：微型圆环 + 计数（与清单角标的 check 图标语义区分；
-   全部完成时圆环转成功色）。圆环用 conic-gradient + 环形遮罩实现，
-   避免在业务组件散落 <svg>（结构规则 R8） */
-.task-card__subprog {
+/* 子任务汇总 chip（父卡）：listTodo 图标 + done/total 计数，全完切换成功色；
+   与头区底部进度条同源取数，构成「容器完成度」的双重信号 */
+.task-card__subchip {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: 4px;
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  color: var(--color-primary-strong);
   font-size: 11px;
-  color: var(--color-text-muted);
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
-.task-card__subring {
-  width: 14px;
-  height: 14px;
-  border-radius: var(--radius-full);
-  background: conic-gradient(
-    var(--color-primary) var(--p, 0%),
-    var(--color-border-strong) 0
-  );
-  mask: radial-gradient(
-    farthest-side,
-    transparent calc(100% - 2.5px),
-    currentcolor calc(100% - 2.5px)
-  );
-}
-
-.task-card__subprog.is-complete .task-card__subring {
-  background: conic-gradient(
-    var(--color-success) var(--p, 0%),
-    var(--color-border-strong) 0
-  );
+.task-card__subchip.is-complete {
+  background: color-mix(in srgb, var(--color-success) 14%, transparent);
+  color: var(--color-success);
 }
 
 .task-card__due {
