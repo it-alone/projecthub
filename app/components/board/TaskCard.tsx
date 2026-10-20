@@ -123,11 +123,15 @@ export function TaskCard({ task, inGroup = false, isParent = false, assigneeName
           </div>
         )}
         <div className="task-card__foot">
-          <span
-            className="prio__dot"
-            style={{ background: prio.color }}
-            title={t(PRIORITY_LABEL_KEY[task.priority])}
-          />
+          {/* 「无」优先级不渲染灰点——每行一颗灰点只会成为视觉噪音，
+              状态色只留给真正携带信息的元素 */}
+          {task.priority !== "none" && (
+            <span
+              className="prio__dot"
+              style={{ background: prio.color }}
+              title={t(PRIORITY_LABEL_KEY[task.priority])}
+            />
+          )}
           {dueText && (
             <span
               className={`task-card__due${overdue ? " task-card__due--overdue" : dueToday ? " task-card__due--today" : ""}`}
@@ -136,7 +140,8 @@ export function TaskCard({ task, inGroup = false, isParent = false, assigneeName
               {dueText}
             </span>
           )}
-          {/* 子任务汇总 chip：容器感的来源之一——图标 + done/total，压满进度条联动 */}
+          {/* 子任务进度：图标 + 计数 + 微型轨道条，作为父卡唯一的完成度信号；
+              与内嵌清单计数（__subt）同语言，仅靠图标区分语义 */}
           {subProgress && (
             <span
               className={`task-card__subchip${subsAllDone ? " is-complete" : ""}`}
@@ -148,6 +153,12 @@ export function TaskCard({ task, inGroup = false, isParent = false, assigneeName
               <Icon name="listTodo" size={12} />
               <span className="task-card__subchip-num">
                 {subProgress.done}/{subProgress.total}
+              </span>
+              <span className="task-card__subchip-track" aria-hidden>
+                <span
+                  className="task-card__subchip-fill"
+                  style={{ "--p": `${(subProgress.done / subProgress.total) * 100}%` } as CSSProperties}
+                />
               </span>
             </span>
           )}
@@ -182,14 +193,6 @@ export function TaskCard({ task, inGroup = false, isParent = false, assigneeName
           )}
         </div>
       </div>
-      {/* 分组头底部进度条：贴面板内缘通栏，父任务的「容器完成度」一扫即知 */}
-      {isParent && subProgress && (
-        <span
-          className={`task-card__progress${subsAllDone ? " is-complete" : ""}`}
-          style={{ "--p": `${(subProgress.done / subProgress.total) * 100}%` } as CSSProperties}
-          aria-hidden
-        />
-      )}
     </div>
   );
 }
