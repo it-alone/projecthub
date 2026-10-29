@@ -45,6 +45,7 @@
   /* ----- 反色与填充前景（跨主题保持一致的表面） ----- */
   --color-on-fill: #fff;        /* 饱和色填充上的前景文字 */
   --color-on-danger: #fff;      /* danger 填充上的前景文字 */
+  --color-on-tint: #31392f;     /* 粉彩浅底填充上的恒定墨色（如表格单元格填色） */
   --color-inverse-surface: #111827; /* 反色表面（Toast 等深色浮层） */
   --color-inverse-text: #f9fafb;   /* 反色表面上的文字 */
 
@@ -57,27 +58,6 @@
   --color-rail-fg: #a1a1aa;
   --color-rail-fg-strong: #fafafa;
   --color-rail-on-strong: #171717;
-
-  /* ----- 证件模拟器（模拟纸面证照的印刷配色；纸面颜色不随主题反转，双主题恒定） ----- */
-  --color-doc-paper: #f6f7f4;      /* 证面底纸 */
-  --color-doc-paper-deep: #e9ede6; /* 证面深一档底（副证/表头带） */
-  --color-doc-paper-warm: #f5efdd; /* 暖调底纸（执照 / 运输证） */
-  --color-doc-ink: #31392f;        /* 证面印刷墨色 */
-  --color-doc-ink-soft: #707a6e;   /* 证面次级墨色 */
-  --color-doc-id-tint: #ddeae3;    /* 身份证淡青绿底 */
-  --color-doc-dl-tint: #e4eddd;    /* 驾驶证淡绿底 */
-  --color-doc-pass-tint: #f0e9dc;  /* 护照米色底 */
-  --color-doc-road-tint: #dcebd9;  /* 道路运输证绿底 */
-  --color-doc-red: #b23830;        /* 执照标题 / 印章红 */
-  --color-doc-photo-bg: #d7dcd2;   /* 人像位底色 */
-  --color-doc-mrz-bg: #edf0e9;     /* 机读区底 */
-  /* 多色底纹晕染色（按真实证照底纹的公开配色取粉彩强度，仅示意风格而非复制防伪纹样） */
-  --color-doc-id-cyan: #c9e2d5;    /* 身份证青绿晕 */
-  --color-doc-id-gold: #eee3bd;    /* 身份证淡金晕 */
-  --color-doc-id-pink: #ecd5ca;    /* 身份证粉晕 */
-  --color-doc-pass-peach: #f0d9bd; /* 护照橘杏晕 */
-  --color-doc-dl-green: #cfe3c8;   /* 驾驶证草绿晕 */
-  --color-doc-dl-sand: #ece5c4;    /* 驾驶证沙金晕 */
 
   /* ----- 圆角 ----- */
   --radius-sm: 6px;

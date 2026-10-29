@@ -34,7 +34,6 @@ export type IconName =
   | "cornerDownRight"
   | "pencil"
   | "workflow"
-  | "idcard"
   | "markdown"
   | "fileText"
   | "undo"
@@ -266,15 +265,6 @@ const PATHS: Record<IconName, React.ReactNode> = {
       <path d="M3 11V9a4 4 0 0 1 4-4h14" />
       <polyline points="7 23 3 19 7 15" />
       <path d="M21 13v2a4 4 0 0 1-4 4H3" />
-    </>
-  ),
-  idcard: (
-    <>
-      <rect x="2" y="5" width="20" height="14" rx="2" />
-      <circle cx="8" cy="11" r="2" />
-      <path d="M5 16.5c.6-1.6 1.7-2.2 3-2.2s2.4.6 3 2.2" />
-      <path d="M14.5 10h4.5" />
-      <path d="M14.5 14h3.5" />
     </>
   ),
   markdown: (

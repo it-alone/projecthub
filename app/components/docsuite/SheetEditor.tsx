@@ -1311,7 +1311,7 @@ export function SheetEditor({ file }: SheetEditorProps) {
     const style: React.CSSProperties = {
       // 浅底背景上的文字固定恒定墨色（无显式文字色时），双主题下都可读
       ...(bgEntry ? { background: bgEntry.value } : null),
-      ...(fgEntry ? { color: fgEntry.value } : bgEntry ? { color: "var(--color-doc-ink)" } : null),
+      ...(fgEntry ? { color: fgEntry.value } : bgEntry ? { color: "var(--color-on-tint)" } : null),
     };
     return (
       <td

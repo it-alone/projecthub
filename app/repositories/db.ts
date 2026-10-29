@@ -10,7 +10,6 @@ import type { Automation } from "~/models/automation";
 import type { ProjectTemplate } from "~/models/projectTemplate";
 import type { TaskTemplate } from "~/models/taskTemplate";
 import type { Flow } from "~/models/flow";
-import type { SimDoc } from "~/models/simDoc";
 import type { MarkdownDoc } from "~/models/markdownDoc";
 import type { DocFile } from "~/models/docSuite";
 
@@ -32,7 +31,6 @@ class ProjectHubDB extends Dexie {
   projectTemplates!: EntityTable<ProjectTemplate, "id">;
   taskTemplates!: EntityTable<TaskTemplate, "id">;
   flows!: EntityTable<Flow, "id">;
-  simDocs!: EntityTable<SimDoc, "id">;
   markdownDocs!: EntityTable<MarkdownDoc, "id">;
   docFiles!: EntityTable<DocFile, "id">;
 
@@ -145,6 +143,10 @@ class ProjectHubDB extends Dexie {
     // v14：在线文档套件（飞书式文档 + 表格）—— 应用级独立文件，按更新时间排序查询
     this.version(14).stores({
       docFiles: "id, updatedAt",
+    });
+    // v15：移除证件模拟器模块 —— 删除 simDocs 表（置 null 即历史数据一并清除）
+    this.version(15).stores({
+      simDocs: null,
     });
   }
 }

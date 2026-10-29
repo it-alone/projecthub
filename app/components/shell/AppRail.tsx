@@ -30,7 +30,6 @@ export function AppRail({ onSearch }: { onSearch: () => void }) {
       {item({ to: "/flows", icon: "workflow", label: t("flowsMenu") })}
       {item({ to: "/docs", icon: "fileText", label: t("docsMenu") })}
       {item({ to: "/markdown", icon: "markdown", label: t("markdownMenu") })}
-      {item({ to: "/simulator", icon: "idcard", label: t("simulatorMenu") })}
       {item({ to: "/users", icon: "user", label: t("usersMenu") })}
       <span className="rail__spacer" />
       <span className="rail__divider" aria-hidden="true" />
