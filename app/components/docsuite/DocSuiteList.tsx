@@ -135,36 +135,41 @@ export function DocSuiteList() {
   ];
   const hasCondition = query.trim() !== "" || kindFilter !== "all";
 
-  function renderRow(file: DocFile) {
+  function renderCard(file: DocFile) {
     const filled = file.sheets.reduce((n, p) => n + Object.keys(p.cells).length, 0);
     return (
-      <li key={file.id} className="suite-row">
+      <li key={file.id} className="suite-card">
         <button
           type="button"
-          className="suite-row__open"
+          className="suite-card__open"
           onClick={() => navigate(`/docs/${file.id}`)}
           aria-label={t("suiteOpenAria", { name: file.title })}
         >
-          <span className={`suite-row__icon${file.kind === "sheet" ? " suite-row__icon--sheet" : ""}`}>
-            <Icon name={file.kind === "doc" ? "fileText" : "table"} size={18} />
-          </span>
-          <span className="suite-row__body">
-            <span className="suite-row__title" title={file.title}>
-              {file.title}
+          {/* 预览区：文档显示摘要、表格显示规模统计，按类型软底着色区分 */}
+          <span className="suite-card__preview">
+            <span className={`suite-card__icon${file.kind === "sheet" ? " suite-card__icon--sheet" : ""}`}>
+              <Icon name={file.kind === "doc" ? "fileText" : "table"} size={20} />
             </span>
-            <span className="suite-row__meta">
+            <span className="suite-card__excerpt">
               {file.kind === "doc"
                 ? file.excerpt || t("suiteDocEmptyHint")
                 : `${t("suiteSheetsBadge", { n: file.sheets.length })} · ${t("suiteCellsBadge", { n: filled })}`}
             </span>
           </span>
-          <span className={`suite-row__kind${file.kind === "sheet" ? " suite-row__kind--sheet" : ""}`}>
-            {t(file.kind === "doc" ? "suiteKindDoc" : "suiteKindSheet")}
+          <span className="suite-card__body">
+            <span className="suite-card__title" title={file.title}>
+              {file.title}
+            </span>
+            <span className="suite-card__foot">
+              <span className={`suite-card__kind${file.kind === "sheet" ? " suite-card__kind--sheet" : ""}`}>
+                {t(file.kind === "doc" ? "suiteKindDoc" : "suiteKindSheet")}
+              </span>
+              <span className="suite-card__time">{fmt(file.updatedAt)}</span>
+            </span>
           </span>
-          <span className="suite-row__time">{fmt(file.updatedAt)}</span>
         </button>
-        {/* 操作区固定占位、悬停/聚焦渐显，避免行内布局跳动 */}
-        <span className="suite-row__actions">
+        {/* 浮动操作面板：悬停/聚焦渐显，叠于预览区右上角 */}
+        <span className="suite-card__actions">
           <button
             type="button"
             className="icon-btn"
@@ -290,7 +295,7 @@ export function DocSuiteList() {
               {g.label}
               <span className="suite-group__count">{g.items.length}</span>
             </h2>
-            <ul className="suite-list">{g.items.map(renderRow)}</ul>
+            <ul className="suite-grid">{g.items.map(renderCard)}</ul>
           </section>
         ))
       )}

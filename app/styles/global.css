@@ -6801,52 +6801,74 @@ select.input {
   color: var(--color-text-muted);
 }
 
-/* 行列表：无边框容器，改为悬浮高亮的圆角行，轻量现代 */
-.suite-list {
+/* 卡片网格：自动填充等宽列，块状卡片替代旧列表行 */
+.suite-grid {
   list-style: none;
   margin: 0;
   padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-4);
+}
+
+/* 卡片：上为预览区、下为信息区；悬浮抬升与 docs-card 保持一致 */
+.suite-card {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden; /* 预览区贴边时由卡片统一裁出圆角 */
+  transition: border-color var(--transition), box-shadow var(--transition),
+    transform var(--transition);
 }
 
-.suite-row {
+.suite-card:hover,
+.suite-card:focus-within {
+  border-color: color-mix(in srgb, var(--color-primary) 45%, var(--color-border));
+  box-shadow: var(--shadow-md);
+}
+
+.suite-card:hover {
+  transform: translateY(-2px);
+}
+
+.suite-card__open {
   display: flex;
-  align-items: center;
-  border-radius: var(--radius-md);
-  transition: background var(--motion-fast);
-}
-
-.suite-row:hover,
-.suite-row:focus-within {
-  background: var(--color-surface-muted);
-}
-
-.suite-row__open {
+  flex-direction: column;
   flex: 1;
   min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-2) var(--space-3);
   border: 0;
-  border-radius: var(--radius-md);
   background: none;
+  font: inherit;
+  color: inherit;
   text-align: left;
   cursor: pointer;
-  color: inherit;
 }
 
-.suite-row__open:focus-visible {
+/* 键盘焦点环贴卡片内侧，避免被 overflow:hidden 裁掉 */
+.suite-card__open:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: -2px;
 }
 
-.suite-row__icon {
+/* 预览区：类型软底色块承载图标 + 摘要/规模统计 */
+.suite-card__preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 108px;
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface-muted);
+}
+
+.suite-card__icon {
   flex: none;
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -6855,20 +6877,31 @@ select.input {
   color: var(--color-primary-strong);
 }
 
-.suite-row__icon--sheet {
+.suite-card__icon--sheet {
   background: var(--color-success-soft);
   color: var(--color-success);
 }
 
-.suite-row__body {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+.suite-card__excerpt {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--color-text-muted);
+  overflow-wrap: break-word;
 }
 
-.suite-row__title {
+/* 信息区：标题 + 「类型胶囊 + 时间」脚注 */
+.suite-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-3) var(--space-4);
+}
+
+.suite-card__title {
   font-size: 14px;
   font-weight: 600;
   color: var(--color-text);
@@ -6877,18 +6910,16 @@ select.input {
   white-space: nowrap;
 }
 
-.suite-row__meta {
-  font-size: 12px;
-  color: var(--color-text-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.suite-card__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
 }
 
 /* 类型徽标：按类型着色的软底胶囊（无边框） */
-.suite-row__kind {
+.suite-card__kind {
   flex: none;
-  margin-left: var(--space-3);
   padding: 2px 8px;
   border-radius: var(--radius-full);
   font-size: 11px;
@@ -6897,52 +6928,72 @@ select.input {
   color: var(--color-primary-strong);
 }
 
-.suite-row__kind--sheet {
+.suite-card__kind--sheet {
   background: var(--color-success-soft);
   color: var(--color-success);
 }
 
-.suite-row__time {
-  flex: none;
-  width: 128px;
-  text-align: right;
+.suite-card__time {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   color: var(--color-text-muted);
 }
 
-/* 操作区固定占位，悬停/聚焦渐显：不隐藏占位（可键盘聚焦）也不引起布局跳动 */
-.suite-row__actions {
-  flex: none;
-  display: flex;
-  justify-content: flex-end;
+/* 浮动操作面板：叠于预览区右上角，悬停/聚焦渐显（可键盘聚焦，不抢布局） */
+.suite-card__actions {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  z-index: 1;
+  display: inline-flex;
   gap: 2px;
-  width: 96px;
-  padding-right: var(--space-2);
+  padding: 2px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-md);
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--motion-fast);
 }
 
-.suite-row:hover .suite-row__actions,
-.suite-row:focus-within .suite-row__actions {
+.suite-card:hover .suite-card__actions,
+.suite-card:focus-within .suite-card__actions {
   opacity: 1;
   pointer-events: auto;
 }
 
+.suite-card__actions .icon-btn {
+  width: 26px;
+  height: 26px;
+  color: var(--color-text-muted);
+}
+
+.suite-card__actions .icon-btn:hover {
+  color: var(--color-text);
+  background: var(--color-surface-muted);
+}
+
+.suite-card__actions .icon-btn--danger:hover {
+  color: var(--color-danger);
+}
+
 /* 触屏无悬停：操作常显，避免不可达 */
 @media (hover: none) {
-  .suite-row__actions {
+  .suite-card__actions {
     opacity: 1;
     pointer-events: auto;
   }
 }
 
-/* 窄屏收敛次要信息，保标题与操作 */
+/* 窄屏压缩预览区高度；卡片塌成单列由 auto-fill 自然完成 */
 @media (width <= 720px) {
-  .suite-row__kind,
-  .suite-row__meta {
-    display: none;
+  .suite-card__preview {
+    min-height: 88px;
   }
 
   .suite-search__input {
